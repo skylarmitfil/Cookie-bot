@@ -1,3 +1,5 @@
+const userPrefs = require('./userPreferences');
+
 const REMINDERS = {
     HUNT_BATTLE: {
         cooldown: 15 * 1000,
@@ -35,15 +37,20 @@ function scheduleReminder(userId, messageCtx, timerKey) {
     }
 
     currentTimers[timerKey] = setTimeout(() => {
+        if (userPrefs.isUserDisabled(userId)) {
+            currentTimers[timerKey] = null;
+            return;
+        }
+
         messageCtx.reply(config.message)
             .then(replyMsg => {
                 setTimeout(() => {
                     replyMsg.delete().catch(err => 
-                        console.error(`Failed to delete reminder message: ${err.message}`)
+                        console.error(`[REMINDER ERROR] Auto-delete failed: ${err.message}`)
                     );
                 }, 5000);
             })
-            .catch(err => console.error(`Failed to send reply reminder: ${err.message}`));
+            .catch(err => console.error(`[REMINDER ERROR] Reply failed: ${err.message}`));
         
         currentTimers[timerKey] = null;
     }, config.cooldown);
@@ -52,20 +59,21 @@ function scheduleReminder(userId, messageCtx, timerKey) {
 module.exports = {
     name: 'owoReminders',
     execute(message) {
-        const content = message.content.toLowerCase().replace(/\s+/g, ' ').trim();
         const userId = message.author.id;
 
-        for (const [key, config] of Object.entries(REMINDERS)) {
-            const matchesTrigger = config.triggers.includes(content);
+        if (userPrefs.isUserDisabled(userId)) return;
 
-            if (matchesTrigger) {
+        const content = message.content.toLowerCase().replace(/\s+/g, ' ').trim();
+
+        for (const [key, config] of Object.entries(REMINDERS)) {
+            if (config.triggers.includes(content)) {
                 scheduleReminder(userId, message, key);
                 break;
             }
         }
     },
     shutdown() {
-        console.log('[OWO MODULE] Clearing active intervals...');
+        console.log('[OWO MODULE] Clearing all scheduled timers...');
         for (const timers of userTimers.values()) {
             Object.values(timers).forEach(timer => timer && clearTimeout(timer));
         }

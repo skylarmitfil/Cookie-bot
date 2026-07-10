@@ -1,15 +1,45 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 
-const userSettings = new Map();
+const DATA_FILE = path.join(__dirname, '../userSettings.json');
+let userSettings = new Map();
+
 const ALL_COOLDOWNS = ['Hunt/Battle', 'Pray/Curse', 'OwO'];
 
+function loadSettingsData() {
+    try {
+        if (fs.existsSync(DATA_FILE)) {
+            const rawData = fs.readFileSync(DATA_FILE, 'utf8');
+            if (rawData.trim()) {
+                const parsed = JSON.parse(rawData);
+                userSettings = new Map(Object.entries(parsed));
+            }
+        }
+    } catch (error) {
+        console.error(`[STORAGE ERROR] Failed to load data file: ${error.message}`);
+    }
+}
+
+function saveSettingsData() {
+    try {
+        const obj = Object.fromEntries(userSettings);
+        fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (error) {
+        console.error(`[STORAGE ERROR] Failed to save data file: ${error.message}`);
+    }
+}
+
 function getOrCreateUserConfig(userId) {
+    if (userSettings.size === 0) loadSettingsData();
+    
     if (!userSettings.has(userId)) {
         userSettings.set(userId, {
             'Hunt/Battle': true,
             'Pray/Curse': true,
             'OwO': true
         });
+        saveSettingsData();
     }
     return userSettings.get(userId);
 }
@@ -65,6 +95,7 @@ module.exports = {
     name: 'userPreferences',
     
     isReminderDisabled(userId, reminderKey) {
+        if (userSettings.size === 0) loadSettingsData();
         if (!userSettings.has(userId)) return false;
         return !userSettings.get(userId)[reminderKey];
     },
@@ -102,12 +133,15 @@ module.exports = {
                 ALL_COOLDOWNS.forEach(key => config[key] = false);
             }
 
+            saveSettingsData();
+
             const updatedPayload = buildSettingsPayload(userId, avatarURL);
             await interaction.update(updatedPayload);
         });
     },
 
     shutdown() {
+        saveSettingsData();
         userSettings.clear();
     }
 };

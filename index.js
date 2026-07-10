@@ -11,6 +11,7 @@ const client = new Client({
     ]
 });
 
+client.prefix = '.';
 client.modules = new Map();
 
 const modulesPath = path.join(__dirname, 'modules');
@@ -47,7 +48,7 @@ client.on('messageCreate', (message) => {
 
     client.modules.forEach(cog => {
         try {
-            cog.execute(message);
+            cog.execute(message, client.prefix);
         } catch (error) {
             console.error(`[RUNTIME ERROR] Exception inside '${cog.name}':`, error);
         }

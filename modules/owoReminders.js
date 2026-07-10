@@ -3,7 +3,7 @@ const userPrefs = require('./userPreferences');
 const REMINDERS = {
     'Hunt/Battle': {
         cooldown: 14 * 1000,
-        message: 'owo hunt/owo battle <:hunt_battle:1520116392756772944>',
+        message: 'Hunt/Battle <:hunt_battle:1520116392756772944>',
         triggers: [
             'owo hunt', 'owohunt', 'owoh', 'owo h', 'wh',
             'owo battle', 'owobattle', 'owob', 'owo b', 'wb'
@@ -16,7 +16,7 @@ const REMINDERS = {
     },
     'Pray/Curse': {
         cooldown: 299 * 1000,
-        message: 'owo pray/owo curse <:Praycurse:1520116373408317570>',
+        message: 'Pray/Curse <:Praycurse:1520116373408317570>',
         triggers: ['owo pray', 'owopray', 'owo curse', 'owocurse']
     }
 };

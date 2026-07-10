@@ -15,7 +15,7 @@ function getOrCreateUserConfig(userId) {
     return userSettings.get(userId);
 }
 
-function buildSettingsPayload(userId) {
+function buildSettingsPayload(userId, avatarURL) {
     const config = getOrCreateUserConfig(userId);
     
     const enabledList = ALL_COOLDOWNS.filter(key => config[key]);
@@ -24,6 +24,7 @@ function buildSettingsPayload(userId) {
     const embed = new EmbedBuilder()
         .setTitle('Reminder Settings')
         .setDescription('Toggle which reminders are enabled below.')
+        .setThumbnail(avatarURL)
         .setColor(0xDC143C)
         .addFields(
             { name: 'Enabled Reminders', value: enabledList.length ? enabledList.join(', ') : 'None', inline: false },
@@ -74,7 +75,8 @@ module.exports = {
         if (content !== `${prefix}reminders`) return;
 
         const userId = message.author.id;
-        const payload = buildSettingsPayload(userId);
+        const avatarURL = message.author.displayAvatarURL({ dynamic: true, size: 256 });
+        const payload = buildSettingsPayload(userId, avatarURL);
 
         const menuMessage = await message.reply(payload);
 
@@ -101,7 +103,7 @@ module.exports = {
                 ALL_COOLDOWNS.forEach(key => config[key] = false);
             }
 
-            const updatedPayload = buildSettingsPayload(userId);
+            const updatedPayload = buildSettingsPayload(userId, avatarURL);
             await interaction.update(updatedPayload);
         });
     },

@@ -1,3 +1,5 @@
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
+
 const disabledUsers = new Map();
 
 module.exports = {
@@ -7,33 +9,65 @@ module.exports = {
         return disabledUsers.has(userId);
     },
 
-    execute(message) {
+    async execute(message) {
         const content = message.content.toLowerCase().trim();
+        if (content !== 'owo remind' && content !== 'oworemind') return;
+
         const userId = message.author.id;
 
-        const isOffCommand = content === 'owo remind off' || content === 'oworemind off';
-        const isOnCommand = content === 'owo remind on' || content === 'oworemind on';
+        const mainEmbed = new EmbedBuilder()
+            .setTitle('OwO Reminder Settings')
+            .setDescription('Click the buttons below to control your automated grinding notifications.')
+            .setColor(0xDC143C)
+            .setTimestamp();
 
-        if (!isOffCommand && !isOnCommand) return;
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`enable_${userId}`)
+                .setLabel('Enable Reminders')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId(`disable_${userId}`)
+                .setLabel('Disable Reminders')
+                .setStyle(ButtonStyle.Danger)
+        );
 
-        let responseMessage = '';
+        const menuMessage = await message.reply({ embeds: [mainEmbed], components: [row] });
 
-        if (isOffCommand) {
-            disabledUsers.set(userId, true);
-            responseMessage = '❌ Your OwO reminders have been **disabled**.';
-        } else if (isOnCommand) {
-            disabledUsers.delete(userId);
-            responseMessage = '✅ Your OwO reminders have been **enabled**.';
-        }
+        const collector = menuMessage.createMessageComponentCollector({
+            componentType: ComponentType.Button,
+            time: 15000
+        });
 
-        message.reply(responseMessage)
-            .then(replyMsg => {
-                setTimeout(() => {
-                    replyMsg.delete().catch(() => {});
-                    message.delete().catch(() => {});
-                }, 5000);
-            })
-            .catch(err => console.error(`[PREFS ERROR] Failed reply layout: ${err.message}`));
+        collector.on('collect', async (interaction) => {
+            if (interaction.user.id !== userId) {
+                return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
+            }
+
+            const updateEmbed = new EmbedBuilder().setTimestamp().setColor(0xDC143C);
+
+            if (interaction.customId === `enable_${userId}`) {
+                disabledUsers.delete(userId);
+                updateEmbed
+                    .setTitle('Reminders Enabled')
+                    .setDescription('✅ Your OwO reminders have been turned on successfully.');
+            } else if (interaction.customId === `disable_${userId}`) {
+                disabledUsers.set(userId, true);
+                updateEmbed
+                    .setTitle('Reminders Disabled')
+                    .setDescription('❌ Your OwO reminders have been turned off successfully.');
+            }
+
+            await interaction.update({ embeds: [updateEmbed], components: [] });
+            collector.stop('clicked');
+        });
+
+        collector.on('end', (collected, reason) => {
+            setTimeout(() => {
+                menuMessage.delete().catch(() => {});
+                message.delete().catch(() => {});
+            }, 5000);
+        });
     },
 
     shutdown() {

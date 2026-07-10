@@ -1,11 +1,13 @@
 {
-  "name": "discord-bot",
+  "name": "cookie-bot",
   "version": "1.0.0",
+  "description": "OwO Reminder Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "discord.js": "^14.17.3"
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.4.5"
   }
 }

@@ -1,7 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 
 const userSettings = new Map();
-
 const ALL_COOLDOWNS = ['Hunt/Battle', 'Pray/Curse', 'OwO'];
 
 function getOrCreateUserConfig(userId) {

@@ -11,10 +11,8 @@ const client = new Client({
     ]
 });
 
-// Holds all dynamically scanned cogs
 client.modules = new Map();
 
-// 1. Module Scanner (Scans your modules folder)
 const modulesPath = path.join(__dirname, 'modules');
 if (fs.existsSync(modulesPath)) {
     const moduleFiles = fs.readdirSync(modulesPath).filter(file => file.endsWith('.js'));
@@ -32,16 +30,13 @@ if (fs.existsSync(modulesPath)) {
     }
 }
 
-// 2. Events & Streaming Status Configuration
 client.once('ready', () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
-    
-    // Set purple streaming badge activity presence
     client.user.setPresence({
         activities: [{
-            name: 'Helping With OwO Reminders',
+            name: 'Watching Your OwO Commands',
             type: ActivityType.Streaming,
-            url: 'https://www.youtube.com/watch?v=h7oSlZL0tEM&list=RDMMh7oSlZL0tEM&start_radio=1'
+            url: 'https://www.youtube.com/watch?v=h7oSlZL0tEM&list=RDMMh7oSlZL0tEM&index=1'
         }],
         status: 'online'
     });
@@ -50,7 +45,6 @@ client.once('ready', () => {
 client.on('messageCreate', (message) => {
     if (message.author.bot) return;
 
-    // Send the channel message event to all loaded modules
     client.modules.forEach(cog => {
         try {
             cog.execute(message);
@@ -60,7 +54,6 @@ client.on('messageCreate', (message) => {
     });
 });
 
-// 3. Railway Graceful Shutdown Environment Cleanup
 process.on('SIGTERM', () => {
     client.modules.forEach(cog => {
         if (typeof cog.shutdown === 'function') cog.shutdown();

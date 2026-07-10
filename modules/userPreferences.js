@@ -9,9 +9,11 @@ module.exports = {
         return disabledUsers.has(userId);
     },
 
-    async execute(message) {
+    async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
-        if (content !== 'owo remind' && content !== 'oworemind') return;
+        const expectedCommand = `${prefix}reminders`;
+
+        if (content !== expectedCommand) return;
 
         const userId = message.author.id;
 

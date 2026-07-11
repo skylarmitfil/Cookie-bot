@@ -8,23 +8,36 @@ let userSettings = new Map();
 
 function loadSettingsData() {
     try {
-        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
         if (fs.existsSync(DATA_FILE)) {
             const rawData = fs.readFileSync(DATA_FILE, 'utf8');
-            if (rawData.trim()) userSettings = new Map(Object.entries(JSON.parse(rawData)));
+            if (rawData.trim()) {
+                const parsed = JSON.parse(rawData);
+                userSettings = new Map(Object.entries(parsed));
+            }
         }
-    } catch (e) { console.error(`[STORAGE ERROR] ${e.message}`); }
+    } catch (error) {
+        console.error(`[STORAGE ERROR] Failed to load data file: ${error.message}`);
+    }
 }
 
 function saveSettingsData() {
     try {
-        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-        fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries(userSettings), null, 2), 'utf8');
-    } catch (e) { console.error(`[STORAGE ERROR] ${e.message}`); }
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        const obj = Object.fromEntries(userSettings);
+        fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (error) {
+        console.error(`[STORAGE ERROR] Failed to save data file: ${error.message}`);
+    }
 }
 
-function getUserConfig(userId) {
+function getOrCreateUserConfig(userId) {
     if (userSettings.size === 0) loadSettingsData();
+    
     if (!userSettings.has(userId)) {
         userSettings.set(userId, {
             'Hunt/Battle': { enabled: true, ping: true, reply: true },
@@ -37,25 +50,23 @@ function getUserConfig(userId) {
 }
 
 function buildConfigPayload(userId, category, avatarURL) {
-    const config = getUserConfig(userId)[category];
+    const config = getOrCreateUserConfig(userId)[category];
     
     const embed = new EmbedBuilder()
-        .setTitle(`${userId.username || 'User'}'s ${category.toLowerCase()} reminder settings`)
-        .setThumbnail(avatarURL)
-        .setColor(config.enabled ? 0x57F287 : 0xED4245)
         .setDescription(
             `${config.enabled ? '✅' : '❌'} **Is this reminder enabled?**\n\n` +
             `${config.ping ? '✅' : '❌'} **Pings / mentions enabled?**\n` +
             `${config.reply ? '✅' : '❌'} **Use inline replies?**`
         )
-        .setFooter({ text: `Customize ${category.toLowerCase()} reminders seamlessly` })
+        .setThumbnail(avatarURL)
+        .setColor(config.enabled ? 0x57F287 : 0xED4245)
+        .setFooter({ text: 'Customize your reminders seamlessly' })
         .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`r_toggle_${category}_enabled_${userId}`)
             .setLabel(category.toLowerCase())
-            .setEmoji(config.enabled ? '😇' : '💀')
             .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
         new ButtonBuilder()
             .setCustomId(`r_toggle_${category}_ping_${userId}`)
@@ -75,16 +86,16 @@ module.exports = {
     
     getSetting(userId, category, settingKey) {
         if (userSettings.size === 0) loadSettingsData();
-        const userConfig = getUserConfig(userId);
+        const userConfig = getOrCreateUserConfig(userId);
         return userConfig[category][settingKey];
     },
 
     async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
-        if (!content.startsWith('.r ')) return;
+        if (!content.startsWith(`${prefix}r `)) return;
 
         const args = content.split(' ');
-        const subCommand = args[1];
+        const subCommand = args[2];
 
         let targetCategory = '';
         if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
@@ -111,12 +122,12 @@ module.exports = {
                 return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
             }
 
+            const config = getOrCreateUserConfig(userId);
             const parts = interaction.customId.split('_');
             const category = parts[2];
             const settingKey = parts[3];
 
-            const userConfig = getUserConfig(userId);
-            userConfig[category][settingKey] = !userConfig[category][settingKey];
+            config[category][settingKey] = !config[category][settingKey];
             
             saveSettingsData();
 
@@ -125,5 +136,10 @@ module.exports = {
             
             await interaction.update(updatedPayload);
         });
+    },
+
+    shutdown() {
+        saveSettingsData();
+        userSettings.clear();
     }
 };

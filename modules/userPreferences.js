@@ -63,11 +63,21 @@ function buildConfigPayload(userId, category, avatarURL) {
         .setFooter({ text: 'Customize your reminders seamlessly' })
         .setTimestamp();
 
+    const mainButton = new ButtonBuilder()
+        .setCustomId(`r_toggle_${category}_enabled_${userId}`)
+        .setLabel(category.toLowerCase())
+        .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger);
+
+    if (category === 'Pray/Curse') {
+        mainButton.setEmoji('1525576307822301304');
+    } else if (category === 'Hunt/Battle') {
+        mainButton.setEmoji('1520116392756772944');
+    } else if (category === 'OwO') {
+        mainButton.setEmoji('1525577851888205915');
+    }
+
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`r_toggle_${category}_enabled_${userId}`)
-            .setLabel(category.toLowerCase())
-            .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
+        mainButton,
         new ButtonBuilder()
             .setCustomId(`r_toggle_${category}_ping_${userId}`)
             .setLabel(config.ping ? 'ping' : 'silent')

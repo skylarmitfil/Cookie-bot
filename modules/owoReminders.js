@@ -17,7 +17,7 @@ const REMINDERS = {
     'Pray/Curse': {
         cooldown: 299 * 1000,
         message: 'Pray/Curse <:Praycurse:1520116373408317570>',
-        triggers: ['owo pray','w pray', 'wpray', 'owopray', 'owo curse','w curse', 'wcurse', 'owocurse']
+        triggers: ['owo pray', 'w pray', 'wpray', 'owopray', 'owo curse', 'w curse', 'wcurse', 'owocurse']
     }
 };
 
@@ -37,20 +37,31 @@ function scheduleReminder(userId, messageCtx, reminderKey) {
     }
 
     currentTimers[reminderKey] = setTimeout(() => {
-        if (userPrefs.isReminderDisabled(userId, reminderKey)) {
+        const isEnabled = userPrefs.getSetting(userId, reminderKey, 'enabled');
+        if (!isEnabled) {
             currentTimers[reminderKey] = null;
             return;
         }
 
-        messageCtx.reply(config.message)
+        const wantPing = userPrefs.getSetting(userId, reminderKey, 'ping');
+        const wantReply = userPrefs.getSetting(userId, reminderKey, 'reply');
+
+        let outMessage = config.message;
+        if (wantPing && !wantReply) {
+            outMessage = `<@${userId}> ${config.message}`;
+        }
+
+        const targetAction = wantReply 
+            ? messageCtx.reply({ content: outMessage, allowedMentions: { repliedUser: wantPing } })
+            : messageCtx.channel.send(outMessage);
+
+        targetAction
             .then(replyMsg => {
                 setTimeout(() => {
-                    replyMsg.delete().catch(err => 
-                        console.error(`[REMINDER ERROR] Auto-delete failed: ${err.message}`)
-                    );
+                    replyMsg.delete().catch(() => {});
                 }, 5000);
             })
-            .catch(err => console.error(`[REMINDER ERROR] Reply failed: ${err.message}`));
+            .catch(err => console.error(`[REMINDER ERROR] Send failed: ${err.message}`));
         
         currentTimers[reminderKey] = null;
     }, config.cooldown);
@@ -64,7 +75,9 @@ module.exports = {
 
         for (const [reminderKey, config] of Object.entries(REMINDERS)) {
             if (config.triggers.includes(content)) {
-                if (userPrefs.isReminderDisabled(userId, reminderKey)) return;
+                const isEnabled = userPrefs.getSetting(userId, reminderKey, 'enabled');
+                if (!isEnabled) return;
+                
                 scheduleReminder(userId, message, reminderKey);
                 break;
             }

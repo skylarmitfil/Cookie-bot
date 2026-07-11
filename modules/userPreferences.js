@@ -95,7 +95,7 @@ module.exports = {
         if (!content.startsWith(`${prefix}r `)) return;
 
         const args = content.split(' ');
-        const subCommand = args[2];
+        const subCommand = args[1];
 
         let targetCategory = '';
         if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
@@ -114,7 +114,7 @@ module.exports = {
 
         const collector = menuMessage.createMessageComponentCollector({
             componentType: ComponentType.Button,
-            time: 300000
+            idle: 25000
         });
 
         collector.on('collect', async (interaction) => {
@@ -135,6 +135,11 @@ module.exports = {
             updatedPayload.embeds[0].setTitle(`${message.author.username}'s ${category.toLowerCase()} reminder settings`);
             
             await interaction.update(updatedPayload);
+        });
+
+        collector.on('end', () => {
+            menuMessage.delete().catch(() => {});
+            message.delete().catch(() => {});
         });
     },
 

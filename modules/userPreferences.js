@@ -6,114 +6,98 @@ const DATA_DIR = '/app/data';
 const DATA_FILE = path.join(DATA_DIR, 'userSettings.json');
 let userSettings = new Map();
 
-const ALL_COOLDOWNS = ['Hunt/Battle', 'Pray/Curse', 'OwO'];
-
 function loadSettingsData() {
     try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
+        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
         if (fs.existsSync(DATA_FILE)) {
             const rawData = fs.readFileSync(DATA_FILE, 'utf8');
-            if (rawData.trim()) {
-                const parsed = JSON.parse(rawData);
-                userSettings = new Map(Object.entries(parsed));
-            }
+            if (rawData.trim()) userSettings = new Map(Object.entries(JSON.parse(rawData)));
         }
-    } catch (error) {
-        console.error(`[STORAGE ERROR] Failed to load data file: ${error.message}`);
-    }
+    } catch (e) { console.error(`[STORAGE ERROR] ${e.message}`); }
 }
 
 function saveSettingsData() {
     try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
-        const obj = Object.fromEntries(userSettings);
-        fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
-    } catch (error) {
-        console.error(`[STORAGE ERROR] Failed to save data file: ${error.message}`);
-    }
+        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+        fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries(userSettings), null, 2), 'utf8');
+    } catch (e) { console.error(`[STORAGE ERROR] ${e.message}`); }
 }
 
-function getOrCreateUserConfig(userId) {
+function getUserConfig(userId) {
     if (userSettings.size === 0) loadSettingsData();
-    
     if (!userSettings.has(userId)) {
         userSettings.set(userId, {
-            'Hunt/Battle': true,
-            'Pray/Curse': true,
-            'OwO': true
+            'Hunt/Battle': { enabled: true, ping: true, reply: true },
+            'Pray/Curse': { enabled: true, ping: true, reply: true },
+            'OwO': { enabled: true, ping: true, reply: true }
         });
         saveSettingsData();
     }
     return userSettings.get(userId);
 }
 
-function buildSettingsPayload(userId, avatarURL) {
-    const config = getOrCreateUserConfig(userId);
+function buildConfigPayload(userId, category, avatarURL) {
+    const config = getUserConfig(userId)[category];
     
-    const enabledList = ALL_COOLDOWNS.filter(key => config[key]);
-    const disabledList = ALL_COOLDOWNS.filter(key => !config[key]);
-
     const embed = new EmbedBuilder()
-        .setTitle('Reminder Settings')
-        .setDescription('Toggle which reminders are enabled below.')
+        .setTitle(`${userId.username || 'User'}'s ${category.toLowerCase()} reminder settings`)
         .setThumbnail(avatarURL)
-        .setColor(0xDC143C)
-        .addFields(
-            { name: 'Enabled Reminders', value: enabledList.length ? enabledList.join(', ') : 'None', inline: false },
-            { name: 'Disabled Reminders', value: disabledList.length ? disabledList.join(', ') : 'None', inline: false }
+        .setColor(config.enabled ? 0x57F287 : 0xED4245)
+        .setDescription(
+            `${config.enabled ? '✅' : '❌'} **Is this reminder enabled?**\n\n` +
+            `${config.ping ? '✅' : '❌'} **Pings / mentions enabled?**\n` +
+            `${config.reply ? '✅' : '❌'} **Use inline replies?**`
         )
-        .setFooter({ text: 'Use the buttons below to toggle reminders' })
+        .setFooter({ text: `Customize ${category.toLowerCase()} reminders seamlessly` })
         .setTimestamp();
 
-    const row1 = new ActionRowBuilder().addComponents(
+    const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId(`toggle_Hunt/Battle_${userId}`)
-            .setLabel('Hunt/Battle')
-            .setStyle(config['Hunt/Battle'] ? ButtonStyle.Success : ButtonStyle.Secondary),
+            .setCustomId(`r_toggle_${category}_enabled_${userId}`)
+            .setLabel(category.toLowerCase())
+            .setEmoji(config.enabled ? '😇' : '💀')
+            .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
         new ButtonBuilder()
-            .setCustomId(`toggle_Pray/Curse_${userId}`)
-            .setLabel('Pray/Curse')
-            .setStyle(config['Pray/Curse'] ? ButtonStyle.Success : ButtonStyle.Secondary),
+            .setCustomId(`r_toggle_${category}_ping_${userId}`)
+            .setLabel(config.ping ? 'ping' : 'silent')
+            .setStyle(config.ping ? ButtonStyle.Success : ButtonStyle.Secondary),
         new ButtonBuilder()
-            .setCustomId(`toggle_OwO_${userId}`)
-            .setLabel('OwO')
-            .setStyle(config['OwO'] ? ButtonStyle.Success : ButtonStyle.Secondary)
+            .setCustomId(`r_toggle_${category}_reply_${userId}`)
+            .setLabel(config.reply ? 'reply' : 'send')
+            .setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
     );
 
-    const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`action_enableAll_${userId}`)
-            .setLabel('Enable All')
-            .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-            .setCustomId(`action_disableAll_${userId}`)
-            .setLabel('Disable All')
-            .setStyle(ButtonStyle.Danger)
-    );
-
-    return { embeds: [embed], components: [row1, row2] };
+    return { embeds: [embed], components: [row] };
 }
 
 module.exports = {
     name: 'userPreferences',
     
-    isReminderDisabled(userId, reminderKey) {
+    getSetting(userId, category, settingKey) {
         if (userSettings.size === 0) loadSettingsData();
-        if (!userSettings.has(userId)) return false;
-        return !userSettings.get(userId)[reminderKey];
+        const userConfig = getUserConfig(userId);
+        return userConfig[category][settingKey];
     },
 
     async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
-        if (content !== `${prefix}reminders`) return;
+        if (!content.startsWith('.r ')) return;
+
+        const args = content.split(' ');
+        const subCommand = args[1];
+
+        let targetCategory = '';
+        if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
+        else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
+        else if (['owo', 'uwu'].includes(subCommand)) targetCategory = 'OwO';
+
+        if (!targetCategory) return;
 
         const userId = message.author.id;
         const avatarURL = message.author.displayAvatarURL({ dynamic: true, size: 256 });
-        const payload = buildSettingsPayload(userId, avatarURL);
+        
+        const payload = buildConfigPayload(userId, targetCategory, avatarURL);
+        payload.embeds[0].setTitle(`${message.author.username}'s ${targetCategory.toLowerCase()} reminder settings`);
 
         const menuMessage = await message.reply(payload);
 
@@ -127,28 +111,19 @@ module.exports = {
                 return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
             }
 
-            const config = getOrCreateUserConfig(userId);
-            const customId = interaction.customId;
+            const parts = interaction.customId.split('_');
+            const category = parts[2];
+            const settingKey = parts[3];
 
-            if (customId.startsWith('toggle_')) {
-                const parts = customId.split('_');
-                const targetKey = parts[1];
-                config[targetKey] = !config[targetKey];
-            } else if (customId.startsWith('action_enableAll_')) {
-                ALL_COOLDOWNS.forEach(key => config[key] = true);
-            } else if (customId.startsWith('action_disableAll_')) {
-                ALL_COOLDOWNS.forEach(key => config[key] = false);
-            }
-
+            const userConfig = getUserConfig(userId);
+            userConfig[category][settingKey] = !userConfig[category][settingKey];
+            
             saveSettingsData();
 
-            const updatedPayload = buildSettingsPayload(userId, avatarURL);
+            const updatedPayload = buildConfigPayload(userId, category, avatarURL);
+            updatedPayload.embeds[0].setTitle(`${message.author.username}'s ${category.toLowerCase()} reminder settings`);
+            
             await interaction.update(updatedPayload);
         });
-    },
-
-    shutdown() {
-        saveSettingsData();
-        userSettings.clear();
     }
 };

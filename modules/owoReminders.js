@@ -5,8 +5,8 @@ const REMINDERS = {
         cooldown: 14 * 1000,
         message: 'Hunt/Battle <:hunt_battle:1520116392756772944>',
         triggers: [
-            'owo hunt', 'owohunt', 'owoh', 'owo h', 'wh',
-            'owo battle', 'owobattle', 'owob', 'owo b', 'wb'
+            'owo hunt', 'owohunt', 'owoh', 'owo h', 'wh', 'w h', 
+            'owo battle', 'owobattle', 'owob', 'owo b', 'wb', 'w b'
         ]
     },
     'OwO': {
@@ -17,7 +17,7 @@ const REMINDERS = {
     'Pray/Curse': {
         cooldown: 299 * 1000,
         message: 'Pray/Curse <:Praycurse:1520116373408317570>',
-        triggers: ['owo pray', 'owopray', 'owo curse', 'owocurse']
+        triggers: ['owo pray','w pray', 'wpray', 'owopray', 'owo curse','w curse', 'wcurse', 'owocurse']
     }
 };
 

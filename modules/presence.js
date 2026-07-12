@@ -4,11 +4,11 @@ module.exports = {
     name: 'presence-manager',
 
     /**
-     * Initializes the streaming presence status when the bot is ready.
+     * Receives the live client instance from index.js
      * @param {import('discord.js').Client} client 
      */
     init: (client) => {
-        // 3-second delay ensuring Discord accepts the presence registration post-handshake
+        // 3-second delay ensures the Discord API safely accepts presence state data after handshake
         setTimeout(() => {
             try {
                 client.user.setPresence({
@@ -19,9 +19,9 @@ module.exports = {
                     }],
                     status: 'online'
                 });
-                console.log('[PRESENCE] Streaming status applied successfully!');
+                console.log('[PRESENCE] Streaming status applied to Discord API successfully!');
             } catch (error) {
-                console.error('[PRESENCE ERROR] Failed to set bot presence:', error);
+                console.error('[PRESENCE ERROR] Failed to push status update:', error);
             }
         }, 3000);
     },
@@ -30,6 +30,6 @@ module.exports = {
      * Required by index.js module architecture.
      */
     execute: (message, prefix) => {
-        // No message handling required for this module
+        // No message handling required for this background manager module
     }
 };

@@ -1,7 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, ActivityType, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events } = require('discord.js');
 
 // Create a new client instance
 const client = new Client({
@@ -25,6 +25,7 @@ if (fs.existsSync(modulesPath)) {
         try {
             const moduleInstance = require(path.join(modulesPath, file));
             
+            // Validate and store module structure
             if (moduleInstance.name && typeof moduleInstance.execute === 'function') {
                 client.modules.set(moduleInstance.name, moduleInstance);
                 console.log(`[LOADER] Successfully loaded cog: ${moduleInstance.name}`);
@@ -35,17 +36,20 @@ if (fs.existsSync(modulesPath)) {
     }
 }
 
-// 2. Lifecycle Events
+// 2. Lifecycle Events (Triggers the init loop when the bot connects)
 client.once(Events.ClientReady, () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
     
-    client.user.setPresence({
-        activities: [{
-            name: 'Watching Your OwO Commands',
-            type: ActivityType.Streaming,
-            url: 'https://youtube.com'
-        }],
-        status: 'online'
+    // Scan all loaded modules and run their init functions if they have one
+    client.modules.forEach(cog => {
+        if (typeof cog.init === 'function') {
+            try {
+                cog.init(client);
+                console.log(`[INIT] Triggered startup code for: ${cog.name}`);
+            } catch (initError) {
+                console.error(`[INIT ERROR] Failed running init block on '${cog.name}':`, initError);
+            }
+        }
     });
 });
 
@@ -62,7 +66,7 @@ client.on(Events.MessageCreate, (message) => {
     });
 });
 
-// 4. Global Error Catching (Crucial to prevent live crashes)
+// 4. Global Error Catching (Prevents live crashes)
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });

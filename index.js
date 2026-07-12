@@ -1,7 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, Events } = require('discord.js');
 
 // Create a new client instance
 const client = new Client({
@@ -35,8 +35,8 @@ if (fs.existsSync(modulesPath)) {
     }
 }
 
-// 2. Lifecycle Events
-client.once('ready', () => {
+// 2. Lifecycle Events (Upgraded to Events.ClientReady for v15)
+client.once(Events.ClientReady, () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
     
     // Automatically trigger externalized configuration setups if modules export an init function
@@ -52,7 +52,7 @@ client.once('ready', () => {
 });
 
 // 3. Message Event Router
-client.on('messageCreate', (message) => {
+client.on(Events.MessageCreate, (message) => {
     if (message.author.bot) return;
 
     client.modules.forEach(cog => {

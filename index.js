@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 
+// Create a new client instance
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -11,16 +12,19 @@ const client = new Client({
     ]
 });
 
+// Configure bot globals
 client.prefix = '.';
 client.modules = new Map();
 
+// 1. Dynamic Module Loader
 const modulesPath = path.join(__dirname, 'modules');
 if (fs.existsSync(modulesPath)) {
     const moduleFiles = fs.readdirSync(modulesPath).filter(file => file.endsWith('.js'));
-
+    
     for (const file of moduleFiles) {
         try {
             const moduleInstance = require(path.join(modulesPath, file));
+            
             if (moduleInstance.name && typeof moduleInstance.execute === 'function') {
                 client.modules.set(moduleInstance.name, moduleInstance);
                 console.log(`[LOADER] Successfully loaded cog: ${moduleInstance.name}`);
@@ -31,18 +35,23 @@ if (fs.existsSync(modulesPath)) {
     }
 }
 
+// 2. Lifecycle Events
 client.once('ready', () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
-    client.user.setPresence({
-        activities: [{
-            name: 'Watching Your OwO Commands',
-            type: ActivityType.Streaming,
-            url: 'https://www.youtube.com/watch?v=h7oSlZL0tEM&list=RDMMh7oSlZL0tEM&index=1'
-        }],
-        status: 'online'
+    
+    // Automatically trigger externalized configuration setups if modules export an init function
+    client.modules.forEach(cog => {
+        if (typeof cog.init === 'function') {
+            try {
+                cog.init(client);
+            } catch (initError) {
+                console.error(`[INIT ERROR] Failed running init block on '${cog.name}':`, initError);
+            }
+        }
     });
 });
 
+// 3. Message Event Router
 client.on('messageCreate', (message) => {
     if (message.author.bot) return;
 
@@ -55,12 +64,30 @@ client.on('messageCreate', (message) => {
     });
 });
 
+// 4. Global Error Catching (Crucial to prevent live crashes)
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('[CRITICAL] Uncaught Exception thrown:', err);
+});
+
+// 5. Graceful Teardown
 process.on('SIGTERM', () => {
+    console.log('[SHUTDOWN] SIGTERM received. Cleaning up...');
     client.modules.forEach(cog => {
-        if (typeof cog.shutdown === 'function') cog.shutdown();
+        if (typeof cog.shutdown === 'function') {
+            try {
+                cog.shutdown();
+            } catch (e) {
+                console.error(`[SHUTDOWN ERROR] Failed on '${cog.name}':`, e);
+            }
+        }
     });
     client.destroy();
     process.exit(0);
 });
 
+// Start the bot
 client.login(process.env.DISCORD_TOKEN);

@@ -22,7 +22,7 @@ module.exports = {
                     `Use \`${prefix}help {command}\` for more help.\n` +
                     `[Support server](https://discord.gg/nPej3j4Xh5) | [Bot Wiki](https://discord-cookie.com)\n\n` +
                     `**Main commands:**\n` +
-                    `┃ \`${prefix}hunt\` \`${prefix}pray\` \`${prefix}owo\``
+                    `┃ \`${prefix}r hunt\` \`${prefix}r pray\` \`${prefix}r owo\``
                 );
 
             // 2. Send only the embed package without any components attached

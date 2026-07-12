@@ -1,7 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, ActivityType, Events } = require('discord.js');
 
 // Create a new client instance
 const client = new Client({
@@ -25,7 +25,6 @@ if (fs.existsSync(modulesPath)) {
         try {
             const moduleInstance = require(path.join(modulesPath, file));
             
-            // Validate module structure before adding to map
             if (moduleInstance.name && typeof moduleInstance.execute === 'function') {
                 client.modules.set(moduleInstance.name, moduleInstance);
                 console.log(`[LOADER] Successfully loaded cog: ${moduleInstance.name}`);
@@ -36,20 +35,17 @@ if (fs.existsSync(modulesPath)) {
     }
 }
 
-// 2. Lifecycle Events (Upgraded to ClientReady for discord.js v15 compatibility)
+// 2. Lifecycle Events
 client.once(Events.ClientReady, () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
     
-    // Explicitly scan the module Map and fire initialization blocks
-    client.modules.forEach(cog => {
-        if (typeof cog.init === 'function') {
-            try {
-                cog.init(client);
-                console.log(`[INIT] Activated startup sequence for: ${cog.name}`);
-            } catch (initError) {
-                console.error(`[INIT ERROR] Failed running init block on '${cog.name}':`, initError);
-            }
-        }
+    client.user.setPresence({
+        activities: [{
+            name: 'Watching Your OwO Commands',
+            type: ActivityType.Streaming,
+            url: 'https://youtube.com'
+        }],
+        status: 'online'
     });
 });
 
@@ -66,7 +62,28 @@ client.on(Events.MessageCreate, (message) => {
     });
 });
 
-// 4. Global Error Catching (Crucial to prevent live crashes)
+// 4. Button Interaction Listener (Fixes the non-working buttons)
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isButton()) return;
+
+    // Capture button clicks originating from the help menu layout
+    if (interaction.customId.startsWith('help_')) {
+        try {
+            const category = interaction.customId.replace('help_', '');
+
+            // Instantly acknowledge the event so the button click does not fail
+            await interaction.reply({ 
+                content: `You opened the **${category}** section!`, 
+                ephemeral: true 
+            });
+
+        } catch (error) {
+            console.error('[INTERACTION ERROR] Failure handling button action:', error);
+        }
+    }
+});
+
+// 5. Global Error Catching (Crucial to prevent live crashes)
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
@@ -75,9 +92,8 @@ process.on('uncaughtException', (err) => {
     console.error('[CRITICAL] Uncaught Exception thrown:', err);
 });
 
-// 5. Graceful Teardown
+// 6. Graceful Teardown
 process.on('SIGTERM', () => {
-    console.log('[SHUTDOWN] SIGTERM received. Cleaning up...');
     client.modules.forEach(cog => {
         if (typeof cog.shutdown === 'function') {
             try {

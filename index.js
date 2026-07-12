@@ -62,28 +62,7 @@ client.on(Events.MessageCreate, (message) => {
     });
 });
 
-// 4. Button Interaction Listener (Fixes the non-working buttons)
-client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isButton()) return;
-
-    // Capture button clicks originating from the help menu layout
-    if (interaction.customId.startsWith('help_')) {
-        try {
-            const category = interaction.customId.replace('help_', '');
-
-            // Instantly acknowledge the event so the button click does not fail
-            await interaction.reply({ 
-                content: `You opened the **${category}** section!`, 
-                ephemeral: true 
-            });
-
-        } catch (error) {
-            console.error('[INTERACTION ERROR] Failure handling button action:', error);
-        }
-    }
-});
-
-// 5. Global Error Catching (Crucial to prevent live crashes)
+// 4. Global Error Catching (Crucial to prevent live crashes)
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
@@ -92,7 +71,7 @@ process.on('uncaughtException', (err) => {
     console.error('[CRITICAL] Uncaught Exception thrown:', err);
 });
 
-// 6. Graceful Teardown
+// 5. Graceful Teardown
 process.on('SIGTERM', () => {
     client.modules.forEach(cog => {
         if (typeof cog.shutdown === 'function') {

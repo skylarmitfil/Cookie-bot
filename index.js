@@ -25,6 +25,7 @@ if (fs.existsSync(modulesPath)) {
         try {
             const moduleInstance = require(path.join(modulesPath, file));
             
+            // Validate module structure before adding to map
             if (moduleInstance.name && typeof moduleInstance.execute === 'function') {
                 client.modules.set(moduleInstance.name, moduleInstance);
                 console.log(`[LOADER] Successfully loaded cog: ${moduleInstance.name}`);
@@ -35,15 +36,16 @@ if (fs.existsSync(modulesPath)) {
     }
 }
 
-// 2. Lifecycle Events (Upgraded to Events.ClientReady for v15)
+// 2. Lifecycle Events (Upgraded to ClientReady for discord.js v15 compatibility)
 client.once(Events.ClientReady, () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
     
-    // Automatically trigger externalized configuration setups if modules export an init function
+    // Explicitly scan the module Map and fire initialization blocks
     client.modules.forEach(cog => {
         if (typeof cog.init === 'function') {
             try {
                 cog.init(client);
+                console.log(`[INIT] Activated startup sequence for: ${cog.name}`);
             } catch (initError) {
                 console.error(`[INIT ERROR] Failed running init block on '${cog.name}':`, initError);
             }

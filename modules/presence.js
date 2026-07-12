@@ -15,7 +15,7 @@ module.exports = {
                     activities: [{
                         name: 'Watching Your OwO Commands',
                         type: ActivityType.Streaming,
-                        url: 'https://youtube.com'
+                        url: 'https://www.youtube.com/watch?v=WaSy8yy-mr8'
                     }],
                     status: 'online'
                 });

@@ -6,21 +6,24 @@ const DATA_DIR = '/app/data';
 const DATA_FILE = path.join(DATA_DIR, 'userSettings.json');
 let userSettings = new Map();
 
-function loadSettingsData() {
-    try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
-        if (fs.existsSync(DATA_FILE)) {
-            const rawData = fs.readFileSync(DATA_FILE, 'utf8');
-            if (rawData.trim()) {
-                const parsed = JSON.parse(rawData);
-                userSettings = new Map(Object.entries(parsed));
-            }
-        }
-    } catch (error) {
-        console.error(`[STORAGE ERROR] Failed to load data file: ${error.message}`);
+// --- INITIALIZE DATA IMMEDIATELY ON BOOT ---
+// This prevents the bot from writing over your persistent Railway volume with an empty map.
+try {
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
     }
+    if (fs.existsSync(DATA_FILE)) {
+        const rawData = fs.readFileSync(DATA_FILE, 'utf8');
+        if (rawData.trim()) {
+            const parsed = JSON.parse(rawData);
+            userSettings = new Map(Object.entries(parsed));
+            console.log(`[STORAGE] Successfully loaded ${userSettings.size} user profiles from persistent volume.`);
+        }
+    } else {
+        console.log('[STORAGE] No existing settings file found. Ready to track configuration states.');
+    }
+} catch (error) {
+    console.error(`[STORAGE ERROR] Failed during early boot read initialization: ${error.message}`);
 }
 
 function saveSettingsData() {
@@ -36,7 +39,6 @@ function saveSettingsData() {
 }
 
 function getOrCreateUserConfig(userId) {
-    if (userSettings.size === 0) loadSettingsData();
     if (!userSettings.has(userId)) {
         userSettings.set(userId, {
             'Hunt/Battle': { enabled: true, ping: true, reply: true },
@@ -67,7 +69,6 @@ function buildConfigPayload(userId, category, avatarURL) {
         .setLabel(category.toLowerCase())
         .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger);
 
-    // Dynamic emoji matching using your custom IDs
     if (category === 'Pray/Curse') {
         mainButton.setEmoji('1525576307822301304');
     } else if (category === 'Hunt/Battle') {
@@ -95,7 +96,6 @@ module.exports = {
     name: 'userPreferences',
     
     getSetting(userId, category, settingKey) {
-        if (userSettings.size === 0) loadSettingsData();
         const userConfig = getOrCreateUserConfig(userId);
         return userConfig[category][settingKey];
     },
@@ -107,12 +107,12 @@ module.exports = {
         const args = content.split(' ');
         if (args.length < 2) return;
         
-        const subCommand = args[1]; // Safely query subcommand argument index
+        const subCommand = args[1];
         let targetCategory = '';
 
         if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
         else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
-        else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO'; // Connects .r owo accurately
+        else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
 
         if (!targetCategory) return;
 
@@ -137,7 +137,6 @@ module.exports = {
             const config = getOrCreateUserConfig(userId);
             const parts = interaction.customId.split('_');
             
-            // Fixed string array index pointers for r_toggle_Category_Key_UserId layout
             const category = parts[2];
             const settingKey = parts[3];
 

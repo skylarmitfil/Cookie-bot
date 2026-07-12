@@ -21,7 +21,7 @@ module.exports = {
                 .setDescription(
                     `Use \`${prefix}help {command}\` for more help.\n` +
                     `📢 **Check our latest updates:** \`${prefix}news\`\n` +
-                    `[Support server](https://discord.gg/nPej3j4Xh5) | [Bot Wiki](discord-cookie.com)\n\n` +
+                    `[Support server](https://discord.gg/nPej3j4Xh5) | [Bot Wiki](https://discord-cookie.com)\n\n` +
                     `**Active Trackers:**\n` +
                     `┃ \`${prefix}hunt\` \`${prefix}pray\` \`${prefix}owo\``
                 );

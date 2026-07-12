@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -48,11 +48,10 @@ function getOrCreateUserConfig(userId) {
     return userSettings.get(userId);
 }
 
-function buildConfigPayload(userId, category, avatarURL, username) {
+function buildConfigPayload(userId, category, avatarURL) {
     const config = getOrCreateUserConfig(userId)[category];
     
     const embed = new EmbedBuilder()
-        .setTitle(`${username}'s ${category.toLowerCase()} reminder settings`)
         .setDescription(
             `${config.enabled ? '✅' : '❌'} **Is this reminder enabled?**\n\n` +
             `${config.ping ? '✅' : '❌'} **Pings / mentions enabled?**\n` +
@@ -68,9 +67,14 @@ function buildConfigPayload(userId, category, avatarURL, username) {
         .setLabel(category.toLowerCase())
         .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger);
 
-    if (category === 'Pray/Curse') mainButton.setEmoji('🙏');
-    else if (category === 'Hunt/Battle') mainButton.setEmoji('⚔️');
-    else if (category === 'OwO') mainButton.setEmoji('🦊');
+    // Dynamic emoji matching using your custom IDs
+    if (category === 'Pray/Curse') {
+        mainButton.setEmoji('1525576307822301304');
+    } else if (category === 'Hunt/Battle') {
+        mainButton.setEmoji('1520116392756772944');
+    } else if (category === 'OwO') {
+        mainButton.setEmoji('1525577851888205915');
+    }
 
     const row = new ActionRowBuilder().addComponents(
         mainButton,
@@ -96,46 +100,60 @@ module.exports = {
         return userConfig[category][settingKey];
     },
 
-    // Fixed parts string mapping indices
-    handleButton(interaction) {
-        const parts = interaction.customId.split('_');
-        const category = parts[2];
-        const settingKey = parts[3];
-        const userId = parts[4];
-
-        if (interaction.user.id !== userId) {
-            return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
-        }
-
-        const config = getOrCreateUserConfig(userId);
-        config[category][settingKey] = !config[category][settingKey];
-        saveSettingsData();
-
-        const avatarURL = interaction.user.displayAvatarURL({ dynamic: true, size: 256 });
-        const updatedPayload = buildConfigPayload(userId, category, avatarURL, interaction.user.username);
-        
-        return interaction.update(updatedPayload);
-    },
-
     async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
         if (!content.startsWith(`${prefix}r `)) return;
 
         const args = content.split(' ');
-        const subCommand = args[1]; // Fixed explicit index location query
+        if (args.length < 2) return;
+        
+        const subCommand = args[1]; // Safely query subcommand argument index
         let targetCategory = '';
 
         if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
         else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
-        else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO'; // Handles owo subcommands safely
+        else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO'; // Connects .r owo accurately
 
         if (!targetCategory) return;
 
         const userId = message.author.id;
-        const avatarURL = message.author.displayAvatarURL({ dynamic: true, size: 256 });
+        const avatarURL = message.author.displayAvatarURL({ forceStatic: false, size: 256 });
         
-        const payload = buildConfigPayload(userId, targetCategory, avatarURL, message.author.username);
-        await message.reply(payload);
+        const payload = buildConfigPayload(userId, targetCategory, avatarURL);
+        payload.embeds[0].setTitle(`${message.author.username}'s ${targetCategory.toLowerCase()} reminder settings`);
+        
+        const menuMessage = await message.reply(payload);
+
+        const collector = menuMessage.createMessageComponentCollector({ 
+            componentType: ComponentType.Button, 
+            idle: 25000 
+        });
+
+        collector.on('collect', async (interaction) => {
+            if (interaction.user.id !== userId) {
+                return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
+            }
+
+            const config = getOrCreateUserConfig(userId);
+            const parts = interaction.customId.split('_');
+            
+            // Fixed string array index pointers for r_toggle_Category_Key_UserId layout
+            const category = parts[2];
+            const settingKey = parts[3];
+
+            config[category][settingKey] = !config[category][settingKey];
+            saveSettingsData();
+
+            const updatedPayload = buildConfigPayload(userId, category, avatarURL);
+            updatedPayload.embeds[0].setTitle(`${message.author.username}'s ${category.toLowerCase()} reminder settings`);
+            
+            await interaction.update(updatedPayload);
+        });
+
+        collector.on('end', () => {
+            menuMessage.delete().catch(() => {});
+            message.delete().catch(() => {});
+        });
     },
 
     shutdown() {

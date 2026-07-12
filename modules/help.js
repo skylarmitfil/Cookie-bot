@@ -20,13 +20,12 @@ module.exports = {
                 })
                 .setDescription(
                     `Use \`${prefix}help {command}\` for more help.\n` +
-                    `📢 **Check our latest bot updates:** \`${prefix}news\`\n` +
-                    `[Support server](https://discord.gg) | [Bot Wiki](https://discord-cookie.com) | [Donate](https://example.com)\n\n` +
+                    `[Support server](https://discord.gg/nPej3j4Xh5) | [Bot Wiki](https://discord-cookie.com)\n\n` +
                     `**Main commands:**\n` +
                     `┃ \`${prefix}hunt\` \`${prefix}pray\` \`${prefix}owo\``
                 );
 
-            // 2. Send only the embed package without any components array attached
+            // 2. Send only the embed package without any components attached
             await message.channel.send({
                 embeds: [helpEmbed]
             });

@@ -1,21 +1,33 @@
+const { ActivityType } = require('discord.js');
+
 module.exports = {
     name: 'presence-manager',
-    // Custom method to run once when the bot is ready
+
+    /**
+     * Initializes the streaming presence status when the bot is ready.
+     * @param {import('discord.js').Client} client 
+     */
     init: (client) => {
-        const { ActivityType } = require('discord.js');
-        
-        client.user.setPresence({
-            activities: [{
-                name: 'Watching Your OwO Commands',
-                type: ActivityType.Streaming,
-                url: 'https://www.youtube.com/watch?v=h7oSlZL0tEM'
-            }],
-            status: 'online'
-        });
-        console.log('[PRESENCE] Streaming status set up successfully.');
+        try {
+            client.user.setPresence({
+                activities: [{
+                    name: 'Watching Your OwO Commands',
+                    type: ActivityType.Streaming,
+                    url: 'https://youtube.com'
+                }],
+                status: 'online'
+            });
+            console.log('[PRESENCE] Streaming status applied successfully.');
+        } catch (error) {
+            console.error('[PRESENCE ERROR] Failed to set bot presence:', error);
+        }
     },
-    // Keep your required execute function so your loader doesn't crash
+
+    /**
+     * Required by index.js module architecture.
+     * Left blank because this file only manages background presence.
+     */
     execute: (message, prefix) => {
-        // Leave empty if this module only handles status updates
+        // No message handling required for this module
     }
 };

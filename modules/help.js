@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
     name: 'help',
@@ -11,9 +11,9 @@ module.exports = {
         if (!message.content.startsWith(`${prefix}help`)) return;
 
         try {
-            // 1. Construct the Rich Menu Embed with a Crimson border color
+            // 1. Construct the clean Crimson Help Embed
             const helpEmbed = new EmbedBuilder()
-                .setColor('#DC143C') // Sets the embed stripe color to Crimson
+                .setColor('#DC143C') // Solid Crimson sidebar stripe
                 .setAuthor({ 
                     name: `${message.client.user.username}'s command list`, 
                     iconURL: message.client.user.displayAvatarURL()
@@ -26,58 +26,9 @@ module.exports = {
                     `┃ \`${prefix}hunt\` \`${prefix}pray\` \`${prefix}owo\``
                 );
 
-            // 2. Row 1 Buttons (Matches the top section of buttons)
-            const row1 = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('help_reminders')
-                    .setLabel('Reminders')
-                    .setEmoji('🏓')
-                    .setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder()
-                    .setCustomId('help_util')
-                    .setLabel('Util')
-                    .setEmoji('⚙️')
-                    .setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder()
-                    .setCustomId('help_stats')
-                    .setLabel('Stats')
-                    .setEmoji('📊')
-                    .setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder()
-                    .setCustomId('help_counting')
-                    .setLabel('Counting')
-                    .setEmoji('🥇')
-                    .setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder()
-                    .setCustomId('help_fun')
-                    .setLabel('Fun')
-                    .setEmoji('😃')
-                    .setStyle(ButtonStyle.Secondary)
-            );
-
-            // 3. Row 2 Buttons (Matches the bottom section of system toggles)
-            const row2 = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('help_reaction_general')
-                    .setLabel('Reaction: general')
-                    .setEmoji('🤖')
-                    .setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder()
-                    .setCustomId('help_reaction_config')
-                    .setLabel('Reaction: config')
-                    .setEmoji('📎')
-                    .setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder()
-                    .setCustomId('help_reaction_misc')
-                    .setLabel('Reaction: misc')
-                    .setEmoji('⭐')
-                    .setStyle(ButtonStyle.Secondary)
-            );
-
-            // 4. Send the complete package directly to the channel
+            // 2. Send only the embed package without any components array attached
             await message.channel.send({
-                embeds: [helpEmbed],
-                components: [row1, row2]
+                embeds: [helpEmbed]
             });
 
         } catch (error) {

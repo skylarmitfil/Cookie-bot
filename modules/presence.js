@@ -8,28 +8,28 @@ module.exports = {
      * @param {import('discord.js').Client} client 
      */
     init: (client) => {
-        // Delaying by 3 seconds ensures Discord safely processes the presence state on launch
+        // 3-second delay ensuring Discord accepts the presence registration post-handshake
         setTimeout(() => {
             try {
                 client.user.setPresence({
                     activities: [{
                         name: 'Watching Your OwO Commands',
                         type: ActivityType.Streaming,
-                        url: 'https://youtube.com' // Absolute direct URL
+                        url: 'https://youtube.com'
                     }],
                     status: 'online'
                 });
-                console.log('[PRESENCE] Streaming status initialized and visible!');
+                console.log('[PRESENCE] Streaming status applied successfully!');
             } catch (error) {
                 console.error('[PRESENCE ERROR] Failed to set bot presence:', error);
             }
-        }, 3000); 
+        }, 3000);
     },
 
     /**
      * Required by index.js module architecture.
      */
     execute: (message, prefix) => {
-        // Leave empty as this is a background worker
+        // No message handling required for this module
     }
 };

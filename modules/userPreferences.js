@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -6,8 +6,7 @@ const DATA_DIR = '/app/data';
 const DATA_FILE = path.join(DATA_DIR, 'userSettings.json');
 let userSettings = new Map();
 
-// --- INITIALIZE DATA IMMEDIATELY ON BOOT ---
-// This prevents the bot from writing over your persistent Railway volume with an empty map.
+// --- INITIALIZE DATA PERSISTENCE ON BOOT ---
 try {
     if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -50,20 +49,62 @@ function getOrCreateUserConfig(userId) {
     return userSettings.get(userId);
 }
 
-function buildConfigPayload(userId, category, avatarURL) {
+// Generates the layout layout matching the Pookie Bot interface framework
+function generateHelpPayload(userId, category, avatarURL, prefix, username) {
     const config = getOrCreateUserConfig(userId)[category];
     
     const embed = new EmbedBuilder()
-        .setDescription(
-            `${config.enabled ? '✅' : '❌'} **Is this reminder enabled?**\n\n` +
-            `${config.ping ? '✅' : '❌'} **Pings / mentions enabled?**\n` +
-            `${config.reply ? '✅' : '❌'} **Use inline replies?**`
-        )
         .setThumbnail(avatarURL)
         .setColor(config.enabled ? 0x57F287 : 0xED4245)
         .setFooter({ text: 'Customize your reminders seamlessly' })
         .setTimestamp();
 
+    const configDescription = 
+        `${config.enabled ? '✅' : '❌'} **Is this reminder enabled?**\n\n` +
+        `${config.ping ? '✅' : '❌'} **Pings / mentions enabled?**\n` +
+        `${config.reply ? '✅' : '❌'} **Use inline replies?**`;
+
+    embed.setTitle(`${username}'s Help & Configuration`);
+    embed.setDescription(
+        `🔗 **[Support Server](https://discord.gg)** | 📖 **[Bot Wiki](https://discord-cookie.com)**\n` +
+        `*+:...oo━━━━━━━ Help Menu ━━━━━━━oo...:+*\n\n` +
+        `**Main commands:**\n` +
+        `┃ \`${prefix}r hunt\` \`${prefix}r pray\` \`${prefix}r owo\`\n\n` +
+        `**Active Category Status:** (${category === 'OwO' ? 'OwO/UwU' : category})\n` +
+        `${configDescription}\n\n` +
+        `*+:...oo━━━━━━━━━━━━━━━━━━━━━━oo...:+*`
+    );
+
+    // Build top navigation dropdown menu box
+    const dropdownMenu = new StringSelectMenuBuilder()
+        .setCustomId(`help_nav_menu_${userId}`)
+        .setPlaceholder('📜 Choose settings category to edit...')
+        .addOptions([
+            { 
+                label: 'Hunt / Battle', 
+                value: 'Hunt/Battle', 
+                description: 'Configure hunt and battle reminders', 
+                emoji: '⚔️',
+                default: category === 'Hunt/Battle'
+            },
+            { 
+                label: 'Pray / Curse', 
+                value: 'Pray/Curse', 
+                description: 'Configure pray and curse reminders', 
+                emoji: '🙏',
+                default: category === 'Pray/Curse'
+            },
+            { 
+                label: 'OwO / UwU', 
+                value: 'OwO', 
+                description: 'Configure owo and uwu action reminders', 
+                emoji: '✨',
+                default: category === 'OwO'
+            }
+        ]);
+    const dropdownRow = new ActionRowBuilder().addComponents(dropdownMenu);
+
+    // Build functional toggle buttons row underneath the menu select wrapper
     const mainButton = new ButtonBuilder()
         .setCustomId(`r_toggle_${category}_enabled_${userId}`)
         .setLabel(category.toLowerCase())
@@ -77,7 +118,7 @@ function buildConfigPayload(userId, category, avatarURL) {
         mainButton.setEmoji('1525577851888205915');
     }
 
-    const row = new ActionRowBuilder().addComponents(
+    const toggleButtonsRow = new ActionRowBuilder().addComponents(
         mainButton,
         new ButtonBuilder()
             .setCustomId(`r_toggle_${category}_ping_${userId}`)
@@ -89,7 +130,7 @@ function buildConfigPayload(userId, category, avatarURL) {
             .setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
     );
 
-    return { embeds: [embed], components: [row] };
+    return { embeds: [embed], components: [dropdownRow, toggleButtonsRow] };
 }
 
 module.exports = {
@@ -102,50 +143,56 @@ module.exports = {
 
     async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
-        if (!content.startsWith(`${prefix}r `)) return;
-
-        const args = content.split(' ');
-        if (args.length < 2) return;
         
-        const subCommand = args[1];
         let targetCategory = '';
 
-        if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
-        else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
-        else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
+        // FIX: Reroute message content parsing filters to catch BOTH command variations
+        if (content.startsWith(`${prefix}help`)) {
+            targetCategory = 'Hunt/Battle'; // Launch menu directly from standard .help call
+        } else if (content.startsWith(`${prefix}r `)) {
+            const args = content.split(' ');
+            if (args.length < 2) return;
+            const subCommand = args[1];
+
+            if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
+            else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
+            else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
+            else if (['help', 'menu', 'config', 'settings'].includes(subCommand)) targetCategory = 'Hunt/Battle';
+        }
 
         if (!targetCategory) return;
 
         const userId = message.author.id;
         const avatarURL = message.author.displayAvatarURL({ forceStatic: false, size: 256 });
         
-        const payload = buildConfigPayload(userId, targetCategory, avatarURL);
-        payload.embeds[0].setTitle(`${message.author.username}'s ${targetCategory.toLowerCase()} reminder settings`);
+        let currentCategory = targetCategory;
+        let payload = generateHelpPayload(userId, currentCategory, avatarURL, prefix, message.author.username);
         
         const menuMessage = await message.reply(payload);
-
-        const collector = menuMessage.createMessageComponentCollector({ 
-            componentType: ComponentType.Button, 
-            idle: 25000 
-        });
+        const collector = menuMessage.createMessageComponentCollector({ idle: 45000 });
 
         collector.on('collect', async (interaction) => {
             if (interaction.user.id !== userId) {
                 return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
             }
 
-            const config = getOrCreateUserConfig(userId);
-            const parts = interaction.customId.split('_');
-            
-            const category = parts[2];
-            const settingKey = parts[3];
+            // Dropdown menu selection
+            if (interaction.isStringSelectMenu() && interaction.customId.startsWith('help_nav_menu_')) {
+                currentCategory = interaction.values[0]; 
+            }
 
-            config[category][settingKey] = !config[category][settingKey];
-            saveSettingsData();
+            // Button components toggling
+            if (interaction.isButton() && interaction.customId.startsWith('r_toggle_')) {
+                const buttonParts = interaction.customId.split('_');
+                const targetCat = buttonParts[2];     
+                const settingKey = buttonParts[3];    
 
-            const updatedPayload = buildConfigPayload(userId, category, avatarURL);
-            updatedPayload.embeds[0].setTitle(`${message.author.username}'s ${category.toLowerCase()} reminder settings`);
-            
+                const userConfig = getOrCreateUserConfig(userId);
+                userConfig[targetCat][settingKey] = !userConfig[targetCat][settingKey];
+                saveSettingsData();
+            }
+
+            const updatedPayload = generateHelpPayload(userId, currentCategory, avatarURL, prefix, interaction.user.username);
             await interaction.update(updatedPayload);
         });
 

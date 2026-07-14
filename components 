@@ -1,0 +1,38 @@
+const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+
+module.exports = {
+    getHelpMenus: () => {
+        // --- ROW 1: Hunt / Battle ---
+        const menu1 = new StringSelectMenuBuilder()
+            .setCustomId('help_hunt_battle')
+            .setPlaceholder('⚔️ Hunt / Battle Commands...')
+            .addOptions([
+                { label: 'Hunt', value: 'cmd_hunt', description: 'Go on a hunt to find items or monsters' },
+                { label: 'Battle', value: 'cmd_battle', description: 'Fight against opponents or bosses' }
+            ]);
+        const row1 = new ActionRowBuilder().addComponents(menu1);
+
+        // --- ROW 2: Pray / Curse ---
+        const menu2 = new StringSelectMenuBuilder()
+            .setCustomId('help_pray_curse')
+            .setPlaceholder('🙏 Pray / Curse Commands...')
+            .addOptions([
+                { label: 'Pray', value: 'cmd_pray', description: 'Pray for good fortune or blessings' },
+                { label: 'Curse', value: 'cmd_curse', description: 'Cast a curse on another player' }
+            ]);
+        const row2 = new ActionRowBuilder().addComponents(menu2);
+
+        // --- ROW 3: OwO / UwU ---
+        const menu3 = new StringSelectMenuBuilder()
+            .setCustomId('help_owo_uwu')
+            .setPlaceholder('✨ OwO / UwU Commands...')
+            .addOptions([
+                { label: 'OwO', value: 'cmd_owo', description: 'Trigger casual OwO interactions' },
+                { label: 'UwU', value: 'cmd_uwu', description: 'Trigger casual UwU interactions' }
+            ]);
+        const row3 = new ActionRowBuilder().addComponents(menu3);
+
+        // Return all three rows as an array
+        return [row1, row2, row3];
+    }
+};

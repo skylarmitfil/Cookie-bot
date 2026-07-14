@@ -57,7 +57,7 @@ module.exports = {
                 // 3. Customize the main help documentation strings inside the description window
                 embed.setTitle(`${message.author.username}'s Help & Configuration`);
                 embed.setDescription(
-                    `🔗 **[Support Server](https://discord.gg)** | 📖 **[Bot Wiki](https://discord-cookie.com)**\n` +
+                    `🔗 **[Support Server] (https://discord.gg/nPej3j4Xh5)** | 📖 **[Bot Wiki](https://discord-cookie.com)**\n` +
                     `*+:...oo━━━━━━━ Help Menu ━━━━━━━oo...:+*\n\n` +
                     `**Main commands:**\n` +
                     `┃ \`${prefix}r hunt\` \`${prefix}r pray\` \`${prefix}r owo\`\n\n` +

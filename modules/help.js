@@ -1,115 +1,211 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
-// Import preferences data tools (Assumes help.js and userPreferences.js are in the same folder)
-const preferencesModule = require('./userPreferences.js'); 
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+
+const DATA_DIR = '/app/data';
+const DATA_FILE = path.join(DATA_DIR, 'userSettings.json');
+let userSettings = new Map();
+
+// --- INITIALIZE DATA PERSISTENCE ON BOOT ---
+try {
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (fs.existsSync(DATA_FILE)) {
+        const rawData = fs.readFileSync(DATA_FILE, 'utf8');
+        if (rawData.trim()) {
+            const parsed = JSON.parse(rawData);
+            userSettings = new Map(Object.entries(parsed));
+            console.log(`[STORAGE] Successfully loaded ${userSettings.size} user profiles from persistent volume.`);
+        }
+    } else {
+        console.log('[STORAGE] No existing settings file found. Ready to track configuration states.');
+    }
+} catch (error) {
+    console.error(`[STORAGE ERROR] Failed during early boot read initialization: ${error.message}`);
+}
+
+function saveSettingsData() {
+    try {
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        const obj = Object.fromEntries(userSettings);
+        fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (error) {
+        console.error(`[STORAGE ERROR] Failed to save data file: ${error.message}`);
+    }
+}
+
+function getOrCreateUserConfig(userId) {
+    if (!userSettings.has(userId)) {
+        userSettings.set(userId, {
+            'Hunt/Battle': { enabled: true, ping: true, reply: true },
+            'Pray/Curse': { enabled: true, ping: true, reply: true },
+            'OwO': { enabled: true, ping: true, reply: true }
+        });
+        saveSettingsData();
+    }
+    return userSettings.get(userId);
+}
+
+// Generates the layout layout matching the Pookie Bot interface framework exactly
+function generateHelpPayload(userId, category, avatarURL, prefix, username) {
+    const config = getOrCreateUserConfig(userId)[category];
+    
+    const embed = new EmbedBuilder()
+        .setThumbnail(avatarURL)
+        .setColor(config.enabled ? 0x57F287 : 0xED4245)
+        .setFooter({ text: 'Customize your reminders seamlessly' })
+        .setTimestamp();
+
+    const configDescription = 
+        `${config.enabled ? '✅' : '❌'} **Is this reminder enabled?**\n\n` +
+        `${config.ping ? '✅' : '❌'} **Pings / mentions enabled?**\n` +
+        `${config.reply ? '✅' : '❌'} **Use inline replies?**`;
+
+    embed.setTitle(`${username}'s Help & Configuration`);
+    embed.setDescription(
+        `🔗 **[Support Server](https://discord.gg)** | 📖 **[Bot Wiki](https://discord-cookie.com)**\n` +
+        `*+:...oo━━━━━━━ Help Menu ━━━━━━━oo...:+*\n\n` +
+        `**Main commands:**\n` +
+        `┃ \`${prefix}r hunt\` \`${prefix}r pray\` \`${prefix}r owo\`\n\n` +
+        `**Active Category Status:** (${category === 'OwO' ? 'OwO/UwU' : category})\n` +
+        `${configDescription}\n\n` +
+        `*+:...oo━━━━━━━━━━━━━━━━━━━━━━oo...:+*`
+    );
+
+    // Build the Dropdown menu component (This locks directly to the bottom edge of the embed)
+    const dropdownMenu = new StringSelectMenuBuilder()
+        .setCustomId(`help_nav_menu_${userId}`)
+        .setPlaceholder('📜 Choose settings category to edit...')
+        .addOptions([
+            { 
+                label: 'Hunt / Battle', 
+                value: 'Hunt/Battle', 
+                description: 'Configure hunt and battle reminders', 
+                emoji: '⚔️',
+                default: category === 'Hunt/Battle'
+            },
+            { 
+                label: 'Pray / Curse', 
+                value: 'Pray/Curse', 
+                description: 'Configure pray and curse reminders', 
+                emoji: '🙏',
+                default: category === 'Pray/Curse'
+            },
+            { 
+                label: 'OwO / UwU', 
+                value: 'OwO', 
+                description: 'Configure owo and uwu action reminders', 
+                emoji: '✨',
+                default: category === 'OwO'
+            }
+        ]);
+    const dropdownRow = new ActionRowBuilder().addComponents(dropdownMenu);
+
+    // Build functional toggle buttons row underneath the menu select wrapper
+    const mainButton = new ButtonBuilder()
+        .setCustomId(`r_toggle_${category}_enabled_${userId}`)
+        .setLabel(category.toLowerCase())
+        .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger);
+
+    if (category === 'Pray/Curse') {
+        mainButton.setEmoji('1525576307822301304');
+    } else if (category === 'Hunt/Battle') {
+        mainButton.setEmoji('1520116392756772944');
+    } else if (category === 'OwO') {
+        mainButton.setEmoji('1525577851888205915');
+    }
+
+    const toggleButtonsRow = new ActionRowBuilder().addComponents(
+        mainButton,
+        new ButtonBuilder()
+            .setCustomId(`r_toggle_${category}_ping_${userId}`)
+            .setLabel(config.ping ? 'ping' : 'silent')
+            .setStyle(config.ping ? ButtonStyle.Success : ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId(`r_toggle_${category}_reply_${userId}`)
+            .setLabel(config.reply ? 'reply' : 'send')
+            .setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
+    );
+
+    // Order controls stacking layout: Dropdown sits right under the embed window line
+    return { embeds: [embed], components: [dropdownRow, toggleButtonsRow] };
+}
 
 module.exports = {
-    name: 'help',
-    /**
-     * Executes when a user triggers the help command (.help)
-     */
-    execute: async (message, prefix) => {
-        if (!message.content.startsWith(`${prefix}help`)) return;
+    name: 'userPreferences',
+    
+    getSetting(userId, category, settingKey) {
+        const userConfig = getOrCreateUserConfig(userId);
+        return userConfig[category][settingKey];
+    },
 
-        try {
-            const userId = message.author.id;
-            const avatarURL = message.author.displayAvatarURL({ forceStatic: false, size: 256 });
+    async execute(message, prefix) {
+        const content = message.content.toLowerCase().trim();
+        let targetCategory = '';
+
+        // Safely check if it's the standalone .help command first
+        if (content === `${prefix}help`) {
+            targetCategory = 'Hunt/Battle'; 
+        } else if (content.startsWith(`${prefix}r `)) {
+            const args = content.split(' ');
+            if (args.length < 2) return; 
             
-            // Initial viewing category
-            let currentCategory = 'Hunt/Battle'; 
+            // FIXED: Added array index lookup position explicitly [1]
+            const subCommand = args[1]; 
 
-            const generateHelpPayload = (category) => {
-                // Fetch the standard layout from our data management file
-                const basePayload = preferencesModule.buildConfigPayload(userId, category, avatarURL);
-                const embed = basePayload.embeds[0]; 
-                const toggleButtonsRow = basePayload.components[0]; 
-
-                // Build top navigation menu matching Pookie Bot's style
-                const dropdownMenu = new StringSelectMenuBuilder()
-                    .setCustomId(`help_nav_menu_${userId}`)
-                    .setPlaceholder('📜 Choose settings category to edit...')
-                    .addOptions([
-                        { 
-                            label: 'Hunt / Battle', 
-                            value: 'Hunt/Battle', 
-                            description: 'Configure hunt and battle reminders', 
-                            emoji: '⚔️',
-                            default: category === 'Hunt/Battle'
-                        },
-                        { 
-                            label: 'Pray / Curse', 
-                            value: 'Pray/Curse', 
-                            description: 'Configure pray and curse reminders', 
-                            emoji: '🙏',
-                            default: category === 'Pray/Curse'
-                        },
-                        { 
-                            label: 'OwO / UwU', 
-                            value: 'OwO', 
-                            description: 'Configure owo and uwu action reminders', 
-                            emoji: '✨',
-                            default: category === 'OwO'
-                        }
-                    ]);
-                const dropdownRow = new ActionRowBuilder().addComponents(dropdownMenu);
-
-                embed.setTitle(`${message.author.username}'s Help & Configuration`);
-                embed.setDescription(
-                    `🔗 **[Support Server](https://discord.gg)** | 📖 **[Bot Wiki](https://discord-cookie.com)**\n` +
-                    `*+:...oo━━━━━━━ Help Menu ━━━━━━━oo...:+*\n\n` +
-                    `**Main commands:**\n` +
-                    `┃ \`${prefix}r hunt\` \`${prefix}r pray\` \`${prefix}r owo\`\n\n` +
-                    `**Active Category Status:** (${category === 'OwO' ? 'OwO/UwU' : category})\n` +
-                    `${embed.data.description}\n\n` +
-                    `*+:...oo━━━━━━━━━━━━━━━━━━━━━━oo...:+*`
-                );
-
-                // Forces dropdown directly into the top components slot under the text frame
-                return {
-                    embeds: [embed],
-                    components: [dropdownRow, toggleButtonsRow]
-                };
-            };
-
-            let payload = generateHelpPayload(currentCategory);
-            const menuMessage = await message.channel.send(payload);
-
-            const collector = menuMessage.createMessageComponentCollector({ idle: 45000 });
-
-            collector.on('collect', async (interaction) => {
-                if (interaction.user.id !== userId) {
-                    return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
-                }
-
-                // Handle category switches on dropdown changes
-                if (interaction.isStringSelectMenu() && interaction.customId.startsWith('help_nav_menu_')) {
-                    currentCategory = interaction.values[0]; 
-                }
-
-                // Handle button toggles underneath the dropdown menu
-                if (interaction.isButton() && interaction.customId.startsWith('r_toggle_')) {
-                    const buttonParts = interaction.customId.split('_');
-                    const targetCat = buttonParts[2];     // e.g., 'Hunt/Battle'
-                    const settingKey = buttonParts[3];    // e.g., 'enabled'
-
-                    // Fetch user settings config mapping directly from preference module hooks
-                    const userConfig = preferencesModule.getOrCreateUserConfig(userId);
-                    
-                    // Invert setting value, toggle state, and write instantly to persistent disk file
-                    userConfig[targetCat][settingKey] = !userConfig[targetCat][settingKey];
-                    preferencesModule.saveSettingsData();
-                }
-
-                const updatedPayload = generateHelpPayload(currentCategory);
-                await interaction.update(updatedPayload);
-            });
-
-            collector.on('end', () => {
-                menuMessage.delete().catch(() => {});
-                message.delete().catch(() => {});
-            });
-
-        } catch (error) {
-            console.error('[HELP COMMAND ERROR]', error);
+            if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
+            else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
+            else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
+            else if (['help', 'menu', 'config', 'settings'].includes(subCommand)) targetCategory = 'Hunt/Battle';
         }
+
+        if (!targetCategory) return;
+
+        const userId = message.author.id;
+        const avatarURL = message.author.displayAvatarURL({ forceStatic: false, size: 256 });
+        
+        let currentCategory = targetCategory;
+        let payload = generateHelpPayload(userId, currentCategory, avatarURL, prefix, message.author.username);
+        
+        const menuMessage = await message.reply(payload);
+        const collector = menuMessage.createMessageComponentCollector({ idle: 45000 });
+
+        collector.on('collect', async (interaction) => {
+            if (interaction.user.id !== userId) {
+                return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
+            }
+
+            // Dropdown menu selection
+            if (interaction.isStringSelectMenu() && interaction.customId.startsWith('help_nav_menu_')) {
+                currentCategory = interaction.values[0]; 
+            }
+
+            // Button components toggling
+            if (interaction.isButton() && interaction.customId.startsWith('r_toggle_')) {
+                const buttonParts = interaction.customId.split('_');
+                const targetCat = buttonParts[2];     
+                const settingKey = buttonParts[3];    
+
+                const userConfig = getOrCreateUserConfig(userId);
+                userConfig[targetCat][settingKey] = !userConfig[targetCat][settingKey];
+                saveSettingsData();
+            }
+
+            const updatedPayload = generateHelpPayload(userId, currentCategory, avatarURL, prefix, interaction.user.username);
+            await interaction.update(updatedPayload);
+        });
+
+        collector.on('end', () => {
+            menuMessage.delete().catch(() => {});
+            message.delete().catch(() => {});
+        });
+    },
+
+    shutdown() {
+        saveSettingsData();
+        userSettings.clear();
     }
 };

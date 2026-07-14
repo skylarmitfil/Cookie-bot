@@ -1,10 +1,11 @@
 const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+// Import preferences data tools (Assumes help.js and userPreferences.js are in the same folder)
 const preferencesModule = require('./userPreferences.js'); 
 
 module.exports = {
     name: 'help',
     /**
-     * Executes when a user triggers the help command
+     * Executes when a user triggers the help command (.help)
      */
     execute: async (message, prefix) => {
         if (!message.content.startsWith(`${prefix}help`)) return;
@@ -13,15 +14,16 @@ module.exports = {
             const userId = message.author.id;
             const avatarURL = message.author.displayAvatarURL({ forceStatic: false, size: 256 });
             
-            // Set initial state
+            // Initial viewing category
             let currentCategory = 'Hunt/Battle'; 
 
             const generateHelpPayload = (category) => {
+                // Fetch the standard layout from our data management file
                 const basePayload = preferencesModule.buildConfigPayload(userId, category, avatarURL);
-                const embed = basePayload.embeds[0]; // Extracting index 0 explicitly from array
-                const toggleButtonsRow = basePayload.components[0]; // Extract button components row
+                const embed = basePayload.embeds[0]; 
+                const toggleButtonsRow = basePayload.components[0]; 
 
-                // Build top navigation menu
+                // Build top navigation menu matching Pookie Bot's style
                 const dropdownMenu = new StringSelectMenuBuilder()
                     .setCustomId(`help_nav_menu_${userId}`)
                     .setPlaceholder('📜 Choose settings category to edit...')
@@ -61,6 +63,7 @@ module.exports = {
                     `*+:...oo━━━━━━━━━━━━━━━━━━━━━━oo...:+*`
                 );
 
+                // Forces dropdown directly into the top components slot under the text frame
                 return {
                     embeds: [embed],
                     components: [dropdownRow, toggleButtonsRow]
@@ -77,19 +80,23 @@ module.exports = {
                     return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
                 }
 
-                // FIX 1: Extract string value directly out of the select array data context
+                // Handle category switches on dropdown changes
                 if (interaction.isStringSelectMenu() && interaction.customId.startsWith('help_nav_menu_')) {
                     currentCategory = interaction.values[0]; 
                 }
 
-                // FIX 2: Fixed variable parsing logic for toggle components execution mapping
+                // Handle button toggles underneath the dropdown menu
                 if (interaction.isButton() && interaction.customId.startsWith('r_toggle_')) {
                     const buttonParts = interaction.customId.split('_');
-                    const category = buttonParts[2];
-                    const settingKey = buttonParts[3];
+                    const targetCat = buttonParts[2];     // e.g., 'Hunt/Battle'
+                    const settingKey = buttonParts[3];    // e.g., 'enabled'
 
-                    // Flips preference states seamlessly on the data engine context layer
-                    preferencesModule.getSetting(userId, category, settingKey);
+                    // Fetch user settings config mapping directly from preference module hooks
+                    const userConfig = preferencesModule.getOrCreateUserConfig(userId);
+                    
+                    // Invert setting value, toggle state, and write instantly to persistent disk file
+                    userConfig[targetCat][settingKey] = !userConfig[targetCat][settingKey];
+                    preferencesModule.saveSettingsData();
                 }
 
                 const updatedPayload = generateHelpPayload(currentCategory);

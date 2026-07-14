@@ -16,24 +16,19 @@ try {
         if (rawData.trim()) {
             const parsed = JSON.parse(rawData);
             userSettings = new Map(Object.entries(parsed));
-            console.log(`[STORAGE] Successfully loaded ${userSettings.size} user profiles from persistent volume.`);
+            console.log(`[STORAGE] Loaded ${userSettings.size} profiles smoothly.`);
         }
-    } else {
-        console.log('[STORAGE] No existing settings file found. Ready to track configuration states.');
     }
 } catch (error) {
-    console.error(`[STORAGE ERROR] Failed during early boot read initialization: ${error.message}`);
+    console.error(`[STORAGE ERROR] Initialization crash: ${error.message}`);
 }
 
 function saveSettingsData() {
     try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
         const obj = Object.fromEntries(userSettings);
         fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
     } catch (error) {
-        console.error(`[STORAGE ERROR] Failed to save data file: ${error.message}`);
+        console.error(`[STORAGE ERROR] Save failed: ${error.message}`);
     }
 }
 
@@ -49,7 +44,6 @@ function getOrCreateUserConfig(userId) {
     return userSettings.get(userId);
 }
 
-// Generates the layout layout matching the Pookie Bot interface framework exactly
 function generateHelpPayload(userId, category, avatarURL, prefix, username) {
     const config = getOrCreateUserConfig(userId)[category];
     
@@ -75,48 +69,24 @@ function generateHelpPayload(userId, category, avatarURL, prefix, username) {
         `*+:...oo━━━━━━━━━━━━━━━━━━━━━━oo...:+*`
     );
 
-    // Build the Dropdown menu component (This locks directly to the bottom edge of the embed)
     const dropdownMenu = new StringSelectMenuBuilder()
         .setCustomId(`help_nav_menu_${userId}`)
         .setPlaceholder('📜 Choose settings category to edit...')
         .addOptions([
-            { 
-                label: 'Hunt / Battle', 
-                value: 'Hunt/Battle', 
-                description: 'Configure hunt and battle reminders', 
-                emoji: '⚔️',
-                default: category === 'Hunt/Battle'
-            },
-            { 
-                label: 'Pray / Curse', 
-                value: 'Pray/Curse', 
-                description: 'Configure pray and curse reminders', 
-                emoji: '🙏',
-                default: category === 'Pray/Curse'
-            },
-            { 
-                label: 'OwO / UwU', 
-                value: 'OwO', 
-                description: 'Configure owo and uwu action reminders', 
-                emoji: '✨',
-                default: category === 'OwO'
-            }
+            { label: 'Hunt / Battle', value: 'Hunt/Battle', description: 'Configure hunt and battle reminders', emoji: '⚔️', default: category === 'Hunt/Battle' },
+            { label: 'Pray / Curse', value: 'Pray/Curse', description: 'Configure pray and curse reminders', emoji: '🙏', default: category === 'Pray/Curse' },
+            { label: 'OwO / UwU', value: 'OwO', description: 'Configure owo and uwu action reminders', emoji: '✨', default: category === 'OwO' }
         ]);
     const dropdownRow = new ActionRowBuilder().addComponents(dropdownMenu);
 
-    // Build functional toggle buttons row underneath the menu select wrapper
     const mainButton = new ButtonBuilder()
         .setCustomId(`r_toggle_${category}_enabled_${userId}`)
         .setLabel(category.toLowerCase())
         .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger);
 
-    if (category === 'Pray/Curse') {
-        mainButton.setEmoji('1525576307822301304');
-    } else if (category === 'Hunt/Battle') {
-        mainButton.setEmoji('1520116392756772944');
-    } else if (category === 'OwO') {
-        mainButton.setEmoji('1525577851888205915');
-    }
+    if (category === 'Pray/Curse') mainButton.setEmoji('1525576307822301304');
+    else if (category === 'Hunt/Battle') mainButton.setEmoji('1520116392756772944');
+    else if (category === 'OwO') mainButton.setEmoji('1525577851888205915');
 
     const toggleButtonsRow = new ActionRowBuilder().addComponents(
         mainButton,
@@ -130,32 +100,25 @@ function generateHelpPayload(userId, category, avatarURL, prefix, username) {
             .setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
     );
 
-    // Order controls stacking layout: Dropdown sits right under the embed window line
     return { embeds: [embed], components: [dropdownRow, toggleButtonsRow] };
 }
 
 module.exports = {
-    name: 'userPreferences',
-    
-    getSetting(userId, category, settingKey) {
-        const userConfig = getOrCreateUserConfig(userId);
-        return userConfig[category][settingKey];
-    },
+    // FIX 1: Set name strictly to 'help' so your central module loader matches ".help" routing loops correctly
+    name: 'help', 
 
     async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
         let targetCategory = '';
 
-        // Safely check if it's the standalone .help command first
+        // Route either .help or subcategory aliases smoothly
         if (content === `${prefix}help`) {
             targetCategory = 'Hunt/Battle'; 
         } else if (content.startsWith(`${prefix}r `)) {
             const args = content.split(' ');
             if (args.length < 2) return; 
             
-            // FIXED: Added array index lookup position explicitly [1]
-            const subCommand = args[1]; 
-
+            const subCommand = args[1]; // Safely target the specific subcommand string position
             if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
             else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
             else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
@@ -178,12 +141,11 @@ module.exports = {
                 return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
             }
 
-            // Dropdown menu selection
+            // FIX 2: Explicitly grab index position [0] from values array context to prevent evaluation routing crashes
             if (interaction.isStringSelectMenu() && interaction.customId.startsWith('help_nav_menu_')) {
                 currentCategory = interaction.values[0]; 
             }
 
-            // Button components toggling
             if (interaction.isButton() && interaction.customId.startsWith('r_toggle_')) {
                 const buttonParts = interaction.customId.split('_');
                 const targetCat = buttonParts[2];     
@@ -202,10 +164,5 @@ module.exports = {
             menuMessage.delete().catch(() => {});
             message.delete().catch(() => {});
         });
-    },
-
-    shutdown() {
-        saveSettingsData();
-        userSettings.clear();
     }
 };

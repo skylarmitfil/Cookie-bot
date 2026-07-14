@@ -1,4 +1,4 @@
-const { ComponentType } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -49,55 +49,53 @@ function getOrCreateUserConfig(userId) {
     return userSettings.get(userId);
 }
 
-// RAW COMPONENTS V2 PAYLOAD BUILDER (Emulates Pookie Bot box design)
-function generateHelpPayload(userId, category, prefix, username) {
+function buildConfigPayload(userId, category, avatarURL) {
     const config = getOrCreateUserConfig(userId)[category];
     
-    const configDescription = 
-        `${config.enabled ? '✅' : '❌'} **Is this reminder enabled?**\n\n` +
-        `${config.ping ? '✅' : '❌'} **Pings / mentions enabled?**\n` +
-        `${config.reply ? '✅' : '❌'} **Use inline replies?**`;
+    const embed = new EmbedBuilder()
+        .setDescription(
+            `${config.enabled ? '✅' : '❌'} **Is this reminder enabled?**\n\n` +
+            `${config.ping ? '✅' : '❌'} **Pings / mentions enabled?**\n` +
+            `${config.reply ? '✅' : '❌'} **Use inline replies?**`
+        )
+        .setThumbnail(avatarURL)
+        .setColor(config.enabled ? 0x57F287 : 0xED4245)
+        .setFooter({ text: 'Customize your reminders seamlessly' })
+        .setTimestamp();
 
-    // Returning a raw API layout blueprint
-    return {
-        flags: 32768, // CRUCIAL: Enables Components V2 processing
-        components: [
-            {
-                type: 1, // Action Row
-                components: [
-                    {
-                        type: 3, // String Select Menu Component
-                        custom_id: `help_nav_menu_${userId}`,
-                        placeholder: '📜 Choose settings category to edit...',
-                        options: [
-                            { label: 'Hunt / Battle', value: 'Hunt/Battle', description: 'Configure hunt and battle reminders', emoji: { name: '⚔️' }, default: category === 'Hunt/Battle' },
-                            { label: 'Pray / Curse', value: 'Pray/Curse', description: 'Configure pray and curse reminders', emoji: { name: '🙏' }, default: category === 'Pray/Curse' },
-                            { label: 'OwO / UwU', value: 'OwO', description: 'Configure owo and uwu action reminders', emoji: { name: '✨' }, default: category === 'OwO' }
-                        ]
-                    }
-                ]
-            },
-            {
-                type: 1, // Second Action Row holding the text section inside the V2 wrapper
-                components: [
-                    {
-                        type: 4, // Text Display / Section sub-component
-                        text: `🔗 **[Support Server](https://discord.gg)** | 📖 **[Bot Wiki](https://discord-cookie.com)**\n` +
-                              `*+:...oo━━━━━━━ Help Menu ━━━━━━━oo...:+*\n\n` +
-                              `**Main commands:**\n` +
-                              `┃ \`${prefix}r hunt\` \`${prefix}r pray\` \`${prefix}r owo\`\n\n` +
-                              `**Active Category Status:** (${category === 'OwO' ? 'OwO/UwU' : category})\n` +
-                              `${configDescription}\n\n` +
-                              `*+:...oo━━━━━━━━━━━━━━━━━━━━━━oo...:+*`
-                    }
-                ]
-            }
-        ]
-    };
+    const mainButton = new ButtonBuilder()
+        .setCustomId(`r_toggle_${category}_enabled_${userId}`)
+        .setLabel(category.toLowerCase())
+        .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger);
+
+    if (category === 'Pray/Curse') {
+        mainButton.setEmoji('1525576307822301304');
+    } else if (category === 'Hunt/Battle') {
+        mainButton.setEmoji('1520116392756772944');
+    } else if (category === 'OwO') {
+        mainButton.setEmoji('1525577851888205915');
+    }
+
+    const row = new ActionRowBuilder().addComponents(
+        mainButton,
+        new ButtonBuilder()
+            .setCustomId(`r_toggle_${category}_ping_${userId}`)
+            .setLabel(config.ping ? 'ping' : 'silent')
+            .setStyle(config.ping ? ButtonStyle.Success : ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId(`r_toggle_${category}_reply_${userId}`)
+            .setLabel(config.reply ? 'reply' : 'send')
+            .setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
+    );
+
+    return { embeds: [embed], components: [row] };
 }
 
 module.exports = {
     name: 'userPreferences',
+    buildConfigPayload,
+    getOrCreateUserConfig,
+    saveSettingsData,
     
     getSetting(userId, category, settingKey) {
         const userConfig = getOrCreateUserConfig(userId);
@@ -106,43 +104,50 @@ module.exports = {
 
     async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
+        if (!content.startsWith(`${prefix}r `)) return;
+
+        const args = content.split(' ');
+        if (args.length < 2) return;
+        
+        const subCommand = args[1];
         let targetCategory = '';
 
-        if (content.startsWith(`${prefix}help`)) {
-            targetCategory = 'Hunt/Battle'; 
-        } else if (content.startsWith(`${prefix}r `)) {
-            const args = content.split(' ');
-            if (args.length < 2) return;
-            const subCommand = args[1];
-
-            if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
-            else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
-            else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
-            else if (['help', 'menu', 'config', 'settings'].includes(subCommand)) targetCategory = 'Hunt/Battle';
-        }
+        if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
+        else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
+        else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
 
         if (!targetCategory) return;
 
         const userId = message.author.id;
-        let currentCategory = targetCategory;
+        const avatarURL = message.author.displayAvatarURL({ forceStatic: false, size: 256 });
         
-        // Build the raw layout packet
-        let payload = generateHelpPayload(userId, currentCategory, prefix, message.author.username);
+        const payload = buildConfigPayload(userId, targetCategory, avatarURL);
+        payload.embeds[0].setTitle(`${message.author.username}'s ${targetCategory.toLowerCase()} reminder settings`);
         
-        // We use standard message.reply but pass our raw API structure
         const menuMessage = await message.reply(payload);
-        const collector = menuMessage.createMessageComponentCollector({ idle: 45000 });
+
+        const collector = menuMessage.createMessageComponentCollector({ 
+            componentType: ComponentType.Button, 
+            idle: 25000 
+        });
 
         collector.on('collect', async (interaction) => {
             if (interaction.user.id !== userId) {
                 return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
             }
 
-            if (interaction.isStringSelectMenu() && interaction.customId.startsWith('help_nav_menu_')) {
-                currentCategory = interaction.values[0]; 
-            }
+            const config = getOrCreateUserConfig(userId);
+            const parts = interaction.customId.split('_');
+            
+            const category = parts[2];
+            const settingKey = parts[3];
 
-            const updatedPayload = generateHelpPayload(userId, currentCategory, prefix, interaction.user.username);
+            config[category][settingKey] = !config[category][settingKey];
+            saveSettingsData();
+
+            const updatedPayload = buildConfigPayload(userId, category, avatarURL);
+            updatedPayload.embeds[0].setTitle(`${message.author.username}'s ${category.toLowerCase()} reminder settings`);
+            
             await interaction.update(updatedPayload);
         });
 

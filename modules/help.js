@@ -17,7 +17,7 @@ module.exports = {
                 .setDescription(
                     `[Support server](https://discord.gg/nPej3j4Xh5) | [Bot Wiki](https://discord-cookie.com)\n\n` +
                     `**Main commands:**\n` +
-                    `┃ \`${prefix}r hunt\` \`${prefix}r pray\` \`${prefix}r owo\``
+                    `┃ \`${prefix}c hunt\` \`${prefix}c pray\` \`${prefix}c owo\``
                 );
 
             // Send the embed without any components

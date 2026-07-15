@@ -5,41 +5,57 @@ const path = require('path');
 module.exports = {
     name: 'captcha',
     async execute(message) {
+        // Ignore messages without attachments
         if (message.attachments.size === 0) return;
         
         const attachment = message.attachments.first();
+        
+        // Ensure the attachment is an image
         if (!attachment.contentType?.startsWith('image/')) return;
 
         try {
-            // Load the CAPTCHA image
+            // Read the incoming CAPTCHA image
             const captchaImg = await Jimp.read(attachment.url);
             
-            // NOTE: You would add logic here to crop the image into 
-            // individual letters (e.g., using captchaImg.crop())
+            // Define the path to your 'template' folder
+            const templateDir = path.join(__dirname, '../template');
             
-            const results = await solve(captchaImg);
-            message.reply(`Detected code: \`${results}\``);
+            // Read all files in the template directory
+            const templateFiles = fs.readdirSync(templateDir);
+            
+            // Assuming the CAPTCHA always has exactly 5 letters
+            const charWidth = Math.floor(captchaImg.bitmap.width / 5);
+            let detectedText = '';
+
+            // Loop 5 times to crop and check each letter side-by-side
+            for (let i = 0; i < 5; i++) {
+                // Crop out the single letter
+                const letterImg = captchaImg.clone().crop(i * charWidth, 0, charWidth, captchaImg.bitmap.height);
+                
+                let bestMatch = { name: '?', distance: Infinity };
+
+                // Compare the cropped letter against every template file you uploaded
+                for (const file of templateFiles) {
+                    // Skip any non-image files (like .gitkeep or other hidden files)
+                    if (!file.endsWith('.png')) continue;
+
+                    const template = await Jimp.read(path.join(templateDir, file));
+                    const distance = Jimp.distance(letterImg, template);
+                    
+                    // A lower distance means the pixels are a closer match
+                    if (distance < bestMatch.distance) {
+                        bestMatch = { name: file.replace('.png', ''), distance };
+                    }
+                }
+                // Add the best matched letter to the final string
+                detectedText += bestMatch.name;
+            }
+            
+            // Send the final detected 5-letter code to the channel
+            message.channel.send(detectedText);
+            
         } catch (err) {
-            console.error(err);
+            console.error('CAPTCHA Solver Error:', err);
         }
     }
 };
-
-async function solve(captchaImg) {
-    const templateDir = path.join(__dirname, '../templates');
-    const files = fs.readdirSync(templateDir);
-    let detectedText = '';
-
-    // Simplified: Compare the whole CAPTCHA image to templates 
-    // (Ideally, loop through each cropped letter)
-    for (const file of files) {
-        const template = await Jimp.read(path.join(templateDir, file));
-        // distance 0 is a perfect match
-        const distance = Jimp.distance(captchaImg, template);
-        
-        if (distance < 0.1) { // Threshold for match
-            detectedText += file.replace('.png', '');
-        }
-    }
-    return detectedText;
-}

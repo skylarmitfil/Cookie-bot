@@ -104,7 +104,7 @@ module.exports = {
 
     async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
-        if (!content.startsWith(`${prefix}r `)) return;
+        if (!content.startsWith(`${prefix}c `)) return;
 
         const args = content.split(' ');
         if (args.length < 2) return;

@@ -51,8 +51,8 @@ module.exports = {
                 detectedText += bestMatch.name;
             }
             
-            // Send the final detected 5-letter code to the channel
-            message.channel.send(detectedText);
+            // Send the final detected 5-letter code to the channel with the requested format
+            message.channel.send(`The code is \`${detectedText}\``);
             
         } catch (err) {
             console.error('CAPTCHA Solver Error:', err);

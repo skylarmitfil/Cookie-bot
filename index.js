@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 
+// Create a new client instance
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -11,6 +12,7 @@ const client = new Client({
     ]
 });
 
+// Configure bot globals
 client.prefix = '.';
 client.modules = new Map();
 
@@ -18,9 +20,12 @@ client.modules = new Map();
 const modulesPath = path.join(__dirname, 'modules');
 if (fs.existsSync(modulesPath)) {
     const moduleFiles = fs.readdirSync(modulesPath).filter(file => file.endsWith('.js'));
+    
     for (const file of moduleFiles) {
         try {
             const moduleInstance = require(path.join(modulesPath, file));
+            
+            // Validate and store module structure
             if (moduleInstance.name && typeof moduleInstance.execute === 'function') {
                 client.modules.set(moduleInstance.name, moduleInstance);
                 console.log(`[LOADER] Successfully loaded cog: ${moduleInstance.name}`);
@@ -31,13 +36,16 @@ if (fs.existsSync(modulesPath)) {
     }
 }
 
-// 2. Lifecycle Events
+// 2. Lifecycle Events (Triggers the init loop when the bot connects)
 client.once(Events.ClientReady, () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
+    
+    // Scan all loaded modules and run their init functions if they have one
     client.modules.forEach(cog => {
         if (typeof cog.init === 'function') {
             try {
                 cog.init(client);
+                console.log(`[INIT] Triggered startup code for: ${cog.name}`);
             } catch (initError) {
                 console.error(`[INIT ERROR] Failed running init block on '${cog.name}':`, initError);
             }
@@ -48,6 +56,7 @@ client.once(Events.ClientReady, () => {
 // 3. Message Event Router
 client.on(Events.MessageCreate, (message) => {
     if (message.author.bot) return;
+
     client.modules.forEach(cog => {
         try {
             cog.execute(message, client.prefix);
@@ -57,35 +66,26 @@ client.on(Events.MessageCreate, (message) => {
     });
 });
 
-// 4. Interaction Handler (The new part)
-client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isStringSelectMenu()) return;
-
-    if (interaction.customId.startsWith('help_nav_menu_')) {
-        const ownerId = interaction.customId.split('_').pop();
-        if (interaction.user.id !== ownerId) {
-            return interaction.reply({ content: "These aren't your settings!", ephemeral: true });
-        }
-
-        const selected = interaction.values[0];
-        await interaction.update({
-            content: `You selected the **${selected}** category.`,
-            // Components are kept so the user can switch categories again
-            components: [interaction.message.components[0]]
-        });
-    }
-});
-
-// 5. Global Error Catching
+// 4. Global Error Catching (Prevents live crashes)
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
+
 process.on('uncaughtException', (err) => {
     console.error('[CRITICAL] Uncaught Exception thrown:', err);
 });
 
-// 6. Graceful Teardown
+// 5. Graceful Teardown
 process.on('SIGTERM', () => {
+    client.modules.forEach(cog => {
+        if (typeof cog.shutdown === 'function') {
+            try {
+                cog.shutdown();
+            } catch (e) {
+                console.error(`[SHUTDOWN ERROR] Failed on '${cog.name}':`, e);
+            }
+        }
+    });
     client.destroy();
     process.exit(0);
 });

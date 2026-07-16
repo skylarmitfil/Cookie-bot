@@ -1,4 +1,5 @@
 const Jimp = require('jimp');
+const pixelmatch = require('pixelmatch');
 const fs = require('fs');
 const path = require('path');
 
@@ -9,11 +10,12 @@ async function initTemplates() {
     if (!fs.existsSync(templateDir)) return;
     const files = fs.readdirSync(templateDir).filter(f => f.endsWith('.png'));
     for (const file of files) {
+        // Load, grayscale, and resize for consistency
         const img = await Jimp.read(path.join(templateDir, file));
-        img.grayscale().resize(32, 32);
-        templates.push({ name: file.replace('.png', ''), img });
+        img.greyscale().resize(32, 32);
+        templates.push({ name: file.replace('.png', ''), data: img.bitmap.data });
     }
-    console.log(`[INIT] Loaded ${templates.length} templates.`);
+    console.log(`[INIT] Loaded ${templates.length} templates for matching.`);
 }
 
 module.exports = {
@@ -25,7 +27,7 @@ module.exports = {
 
         try {
             const captchaImg = await Jimp.read(attachment.url);
-            captchaImg.grayscale();
+            captchaImg.greyscale();
             
             const charWidth = Math.floor(captchaImg.bitmap.width / 5);
             let detectedText = '';
@@ -35,11 +37,22 @@ module.exports = {
                     .crop(i * charWidth, 0, charWidth, captchaImg.bitmap.height)
                     .resize(32, 32);
 
-                let bestMatch = { name: '?', distance: Infinity };
+                let bestMatch = { name: '?', score: Infinity };
+
                 for (const t of templates) {
-                    const dist = Jimp.distance(letterImg, t.img);
-                    if (dist < bestMatch.distance) {
-                        bestMatch = { name: t.name, distance: dist };
+                    // pixelmatch returns the number of differing pixels
+                    // We create a dummy buffer for the output (not needed here)
+                    const diff = new Uint8Array(32 * 32 * 4);
+                    const score = pixelmatch(
+                        letterImg.bitmap.data, 
+                        t.data, 
+                        diff, 
+                        32, 32, 
+                        { threshold: 0.2 } // Adjust this 0.1 - 0.4 if needed
+                    );
+                    
+                    if (score < bestMatch.score) {
+                        bestMatch = { name: t.name, score };
                     }
                 }
                 detectedText += bestMatch.name;

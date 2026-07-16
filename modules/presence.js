@@ -2,9 +2,10 @@ const { ActivityType } = require('discord.js');
 
 module.exports = {
     name: 'presence-manager',
-
     init: (client) => {
-        // Remove setTimeout. ClientReady guarantees client.user is ready.
+        // Double-check user is defined
+        if (!client.user) return; 
+
         try {
             client.user.setPresence({
                 activities: [{
@@ -16,9 +17,8 @@ module.exports = {
             });
             console.log('[PRESENCE] Streaming status applied successfully!');
         } catch (error) {
-            console.error('[PRESENCE ERROR] Failed to push status update:', error);
+            console.error('[PRESENCE ERROR]:', error);
         }
     },
-
-    execute: (message, prefix) => {}
+    execute: () => {}
 };

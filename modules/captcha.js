@@ -3,14 +3,15 @@ const pixelmatch = require('pixelmatch');
 const fs = require('fs').promises;
 const path = require('path');
 
-// Configuration Constants
-const LETTERS_DIR = path.join(__dirname, '../letters'); // Point to your folder of reference letters
-const LETTER_WIDTH = 30;  // Match the width of your template images
-const LETTER_HEIGHT = 40; // Match the height of your template images
+// --- PATH CONFIGURATION ---
+// This looks for a folder named "template" located in your project's root folder
+const LETTERS_DIR = path.join(process.cwd(), 'template'); 
+const LETTER_WIDTH = 30;  // Adjust to match your template width if needed
+const LETTER_HEIGHT = 40; // Adjust to match your template height if needed
 
 let referenceCache = null;
 
-// Pre-load reference letters into memory once for high performance on Railway
+// Pre-load reference templates into RAM for fast performance on Railway
 async function loadReferenceLetters() {
     if (referenceCache) return referenceCache;
     
@@ -19,16 +20,18 @@ async function loadReferenceLetters() {
         const files = await fs.readdir(LETTERS_DIR);
         for (const file of files) {
             if (file.endsWith('.png')) {
+                // Extracts the character name from the filename (e.g., "a.png" becomes "A")
                 const char = path.basename(file, '.png').toUpperCase();
                 const img = await Jimp.read(path.join(LETTERS_DIR, file));
                 
+                // Normalize reference styles to match the cleaned incoming stream
                 img.resize(LETTER_WIDTH, LETTER_HEIGHT).greyscale().contrast(1).threshold({ max: 150 });
                 referenceCache.push({ char, bitmap: img.bitmap });
             }
         }
-        console.log(`[CAPTCHA] Loaded ${referenceCache.length} reference letters.`);
+        console.log(`[CAPTCHA] Successfully loaded ${referenceCache.length} templates from /template folder.`);
     } catch (err) {
-        console.error('[CAPTCHA INIT ERROR]:', err);
+        console.error('[CAPTCHA INIT ERROR]: Make sure your "template" folder exists at the project root.', err);
     }
     return referenceCache;
 }
@@ -39,7 +42,7 @@ module.exports = {
         const attachment = message.attachments.first();
         if (!attachment || !attachment.contentType?.startsWith('image/')) return;
 
-        console.log(`[CAPTCHA] Processing via Pixelmatch from ${message.author.tag}`);
+        console.log(`[CAPTCHA] Processing via Template Matching from ${message.author.tag}`);
 
         const replyMessage = await message.reply({
             content: `I detected a CAPTCHA. Running pixel analysis...`,
@@ -49,10 +52,10 @@ module.exports = {
         try {
             const references = await loadReferenceLetters();
             if (!references || references.length === 0) {
-                return await replyMessage.edit("Error: Reference letters folder is missing or empty.");
+                return await replyMessage.edit("Error: The 'template' folder is missing or contains no .png files.");
             }
 
-            // 1. Download and mask the image to isolate the blue pixels
+            // 1. Download and isolate OwO's signature light-blue color palette
             const captchaImg = await Jimp.read(attachment.url);
             captchaImg.scan(0, 0, captchaImg.bitmap.width, captchaImg.bitmap.height, function(x, y, idx) {
                 const red = this.bitmap.data[idx + 0];
@@ -60,20 +63,19 @@ module.exports = {
                 const blue = this.bitmap.data[idx + 2];
 
                 if (blue > 130 && red < 120 && green < 190) {
-                    this.bitmap.data[idx + 0] = 0;   // Black text
+                    this.bitmap.data[idx + 0] = 0;   // Turn letters pure black
                     this.bitmap.data[idx + 1] = 0;
                     this.bitmap.data[idx + 2] = 0;
                 } else {
-                    this.bitmap.data[idx + 0] = 255; // White background
+                    this.bitmap.data[idx + 0] = 255; // Turn background pure white
                     this.bitmap.data[idx + 1] = 255;
                     this.bitmap.data[idx + 2] = 255;
                 }
             });
 
-            // 2. Segment the image into letter blocks
-            // Based on your image, OwO usually spits out 5 characters split across 2 words (e.g. 3 letters + 2 letters)
+            // 2. Horizontally slice the image container matrix into letters
             const finalCharacters = [];
-            const segments = 5; 
+            const segments = 5; // Tracks the 5 character layout slots
             const segmentWidth = Math.floor(captchaImg.bitmap.width / segments);
 
             for (let i = 0; i < segments; i++) {
@@ -84,7 +86,7 @@ module.exports = {
                 let bestMatchChar = '?';
                 let lowestDiffPixels = Infinity;
 
-                // 3. Match the current segment slice directly against your saved alphabet images
+                // 3. Compute pixel mismatch thresholds against your cached local dictionary
                 for (const ref of references) {
                     const diffBuffer = Buffer.alloc(LETTER_WIDTH * LETTER_HEIGHT * 4);
                     
@@ -103,6 +105,7 @@ module.exports = {
                     }
                 }
 
+                // Verify the matched shape holds strong continuity structural properties
                 if (lowestDiffPixels < (LETTER_WIDTH * LETTER_HEIGHT * 0.75)) {
                     finalCharacters.push(bestMatchChar);
                 }
@@ -110,11 +113,11 @@ module.exports = {
 
             const finalString = finalCharacters.join('');
 
-            // 4. Respond with the clean code wrapped in code brackets
+            // 4. Edit the notification tracking instance with the code wrap text block
             if (finalString) {
                 await replyMessage.edit(`\`${finalString}\``);
             } else {
-                await replyMessage.edit("Failed to match the pixel structures against local templates.");
+                await replyMessage.edit("Failed to match the pixel structures against the local templates.");
             }
             
         } catch (err) {

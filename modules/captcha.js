@@ -3,8 +3,8 @@ const pixelmatch = require('pixelmatch');
 const fs = require('fs').promises;
 const path = require('path');
 
-// FIX: Absolute path tracking directly relative to this command file position
-const LETTERS_DIR = path.join(__dirname, 'template'); 
+// FIX: Step out of the "modules" folder to find the "template" folder at root level
+const LETTERS_DIR = path.join(__dirname, '..', 'template'); 
 const LETTER_WIDTH = 30;  
 const LETTER_HEIGHT = 40; 
 
@@ -25,9 +25,9 @@ async function loadReferenceLetters() {
                 referenceCache.push({ char, bitmap: img.bitmap });
             }
         }
-        console.log(`[CAPTCHA] Successfully loaded ${referenceCache.length} template glyphs.`);
+        console.log(`[CAPTCHA] Successfully loaded ${referenceCache.length} templates from root /template folder.`);
     } catch (err) {
-        console.error('[CAPTCHA INIT ERROR]: Cannot load reference folder.', err);
+        console.error(`[CAPTCHA INIT ERROR]: Could not find template folder at ${LETTERS_DIR}`, err);
     }
     return referenceCache;
 }
@@ -38,17 +38,17 @@ module.exports = {
         const attachment = message.attachments.first();
         if (!attachment || !attachment.contentType?.startsWith('image/')) return;
 
-        console.log(`[CAPTCHA] Intercepted image. Running extraction pipeline...`);
+        console.log(`[CAPTCHA] Processing via Template Matching from ${message.author.tag}`);
 
         const replyMessage = await message.reply({
-            content: `I detected a CAPTCHA. Scanning letter structures...`,
+            content: `I detected a CAPTCHA. Running pixel analysis...`,
             allowedMentions: { repliedUser: true }
         });
 
         try {
             const references = await loadReferenceLetters();
             if (!references || references.length === 0) {
-                return await replyMessage.edit(`Error: The template folder at \`${LETTERS_DIR}\` is missing or unreadable.`);
+                return await replyMessage.edit(`Error: The template folder at \`${LETTERS_DIR}\` is missing or empty.`);
             }
 
             const captchaImg = await Jimp.read(attachment.url);
@@ -89,7 +89,7 @@ module.exports = {
                         diffBuffer,
                         LETTER_WIDTH,
                         LETTER_HEIGHT,
-                        { threshold: 0.20 } 
+                        { threshold: 0.20 }
                     );
 
                     if (mismatchedPixels < lowestDiffPixels) {
@@ -105,10 +105,10 @@ module.exports = {
 
             const finalString = finalCharacters.join('');
 
-            if (finalString && finalString.length > 0) {
+            if (finalString) {
                 await replyMessage.edit(`\`${finalString}\``);
             } else {
-                await replyMessage.edit("Could not accurately compute pixel matches.");
+                await replyMessage.edit("Failed to match the pixel structures against the local templates.");
             }
             
         } catch (err) {

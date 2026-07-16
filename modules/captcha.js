@@ -69,9 +69,9 @@ module.exports = {
             // 8. Clean up formatting whitespace and normalize output to uppercase
             const finalResult = text.replace(/[^a-zA-Z0-9]/g, '').trim().toUpperCase();
 
-            // 9. Update the initial Discord bot response with the final string output
+            // 9. Update the initial Discord bot response wrapped inside code markers
             if (finalResult && finalResult.length > 0) {
-                await replyMessage.edit(`**Decrypted CAPTCHA Code:** \`${finalResult}\``);
+                await replyMessage.edit(`\`${finalResult}\``);
             } else {
                 await replyMessage.edit("Could not isolate character structures cleanly. Please try generating a new one.");
             }

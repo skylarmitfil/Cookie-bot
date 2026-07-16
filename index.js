@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 
-// Create a new client instance
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -12,7 +11,6 @@ const client = new Client({
     ]
 });
 
-// Configure bot globals
 client.prefix = '.';
 client.modules = new Map();
 
@@ -20,75 +18,37 @@ client.modules = new Map();
 const modulesPath = path.join(__dirname, 'modules');
 if (fs.existsSync(modulesPath)) {
     const moduleFiles = fs.readdirSync(modulesPath).filter(file => file.endsWith('.js'));
-    
     for (const file of moduleFiles) {
-        try {
-            const moduleInstance = require(path.join(modulesPath, file));
-            
-            // Validate and store module structure
-            if (moduleInstance.name && typeof moduleInstance.execute === 'function') {
-                client.modules.set(moduleInstance.name, moduleInstance);
-                console.log(`[LOADER] Successfully loaded cog: ${moduleInstance.name}`);
-            }
-        } catch (error) {
-            console.error(`[LOADER] Failed to load module ${file}:`, error);
+        const moduleInstance = require(path.join(modulesPath, file));
+        if (moduleInstance.name && typeof moduleInstance.execute === 'function') {
+            client.modules.set(moduleInstance.name, moduleInstance);
+            console.log(`[LOADER] Loaded: ${moduleInstance.name}`);
         }
     }
 }
 
-// 2. Lifecycle Events (Triggers the init loop when the bot connects)
+// 2. Lifecycle
 client.once(Events.ClientReady, () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
-    
-    // Scan all loaded modules and run their init functions if they have one
-    client.modules.forEach(cog => {
-        if (typeof cog.init === 'function') {
-            try {
-                cog.init(client);
-                console.log(`[INIT] Triggered startup code for: ${cog.name}`);
-            } catch (initError) {
-                console.error(`[INIT ERROR] Failed running init block on '${cog.name}':`, initError);
-            }
-        }
-    });
+    client.modules.forEach(cog => { if (cog.init) cog.init(client); });
 });
 
-// 3. Message Event Router
+// 3. Optimized Router
 client.on(Events.MessageCreate, (message) => {
-    if (message.author.bot) return;
+    if (message.author.bot || !message.content.startsWith(client.prefix)) return;
 
-    client.modules.forEach(cog => {
+    const args = message.content.slice(client.prefix.length).trim().split(/ +/);
+    const commandName = args.shift().toLowerCase();
+
+    // Check if the command exists in modules
+    const module = client.modules.get(commandName);
+    if (module) {
         try {
-            cog.execute(message, client.prefix);
-        } catch (error) {
-            console.error(`[RUNTIME ERROR] Exception inside '${cog.name}':`, error);
+            module.execute(message, args);
+        } catch (err) {
+            console.error(`[RUNTIME ERROR]`, err);
         }
-    });
+    }
 });
 
-// 4. Global Error Catching (Prevents live crashes)
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (err) => {
-    console.error('[CRITICAL] Uncaught Exception thrown:', err);
-});
-
-// 5. Graceful Teardown
-process.on('SIGTERM', () => {
-    client.modules.forEach(cog => {
-        if (typeof cog.shutdown === 'function') {
-            try {
-                cog.shutdown();
-            } catch (e) {
-                console.error(`[SHUTDOWN ERROR] Failed on '${cog.name}':`, e);
-            }
-        }
-    });
-    client.destroy();
-    process.exit(0);
-});
-
-// Start the bot
 client.login(process.env.DISCORD_TOKEN);

@@ -14,44 +14,58 @@ const client = new Client({
 const OWO_BOT_ID = '287034444583108608'; 
 client.commands = new Collection();
 
-// FIX: Dynamic Module Folder Loader Checklist
+// Dynamic Module Folder Loader Pipeline
 const modulesPath = path.join(__dirname, 'modules');
 
 try {
     if (fs.existsSync(modulesPath)) {
         const commandFiles = fs.readdirSync(modulesPath).filter(file => file.endsWith('.js'));
-        
         for (const file of commandFiles) {
             const filePath = path.join(modulesPath, file);
             const command = require(filePath);
-            
             if (command.name && typeof command.execute === 'function') {
                 client.commands.set(command.name, command);
-                console.log(`[LOADER] Successfully registered module command: ${command.name}`);
+                console.log(`[LOADER] Registered module command: ${command.name}`);
             }
         }
     } else {
-        console.error(`[LOADER CRITICAL]: The "modules" folder does not exist at ${modulesPath}`);
+        console.error(`[LOADER CRITICAL]: "modules" folder missing at ${modulesPath}`);
     }
 } catch (error) {
-    console.error('[LOADER ERROR]: Fails to dynamically resolve file collections:', error);
+    console.error('[LOADER ERROR]: Failed loading files:', error);
 }
 
 client.once('clientReady', () => {
-    console.log(`[BOOT] ${client.user.tag} is online and watching for OwO bot updates.`);
+    console.log(`[BOOT] ${client.user.tag} is online and tracking messages.`);
 });
 
 client.on('messageCreate', async (message) => {
-    if (message.author.bot && message.author.id !== OWO_BOT_ID) return;
+    // Stop if it isn't the official OwO bot account
+    if (message.author.id !== OWO_BOT_ID) return;
 
+    let targetImageUrl = null;
+
+    // Check Case A: Traditional File Attachments
     if (message.attachments.size > 0) {
-        // Looks inside our dynamically filled module collection
+        const attachment = message.attachments.first();
+        if (attachment.contentType?.startsWith('image/')) {
+            targetImageUrl = attachment.url;
+        }
+    } 
+    // Check Case B: Rich Embed Images (OwO Bot Layout Fallback)
+    else if (message.embeds.length > 0 && message.embeds[0].image) {
+        targetImageUrl = message.embeds[0].image.url;
+    }
+
+    // If an image URL was verified, execute the captcha algorithm module
+    if (targetImageUrl) {
         const captchaCommand = client.commands.get('captcha');
         if (captchaCommand) {
             try {
-                await captchaCommand.execute(message);
+                // Pass the verified image URL directly down into the command context
+                await captchaCommand.execute(message, targetImageUrl);
             } catch (err) {
-                console.error('[EXECUTION ERROR]: Failed running command module.', err);
+                console.error('[EXECUTION ERROR]: Failed running captcha module.', err);
             }
         }
     }

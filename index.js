@@ -11,42 +11,32 @@ const client = new Client({
     ]
 });
 
-client.prefix = '.';
 client.modules = new Map();
 
-// 1. Dynamic Module Loader
+// Load modules
 const modulesPath = path.join(__dirname, 'modules');
 if (fs.existsSync(modulesPath)) {
-    const moduleFiles = fs.readdirSync(modulesPath).filter(file => file.endsWith('.js'));
-    for (const file of moduleFiles) {
-        const moduleInstance = require(path.join(modulesPath, file));
-        if (moduleInstance.name && typeof moduleInstance.execute === 'function') {
-            client.modules.set(moduleInstance.name, moduleInstance);
-            console.log(`[LOADER] Loaded: ${moduleInstance.name}`);
-        }
-    }
+    fs.readdirSync(modulesPath).filter(f => f.endsWith('.js')).forEach(file => {
+        const mod = require(path.join(modulesPath, file));
+        if (mod.name) client.modules.set(mod.name, mod);
+    });
 }
 
-// 2. Lifecycle
 client.once(Events.ClientReady, () => {
-    console.log(`[ONLINE] Logged in as ${client.user.tag}`);
-    client.modules.forEach(cog => { if (cog.init) cog.init(client); });
+    console.log(`[ONLINE] ${client.user.tag} is ready.`);
+    client.modules.forEach(m => { if (m.init) m.init(); });
 });
 
-// 3. Optimized Router
+// Automatic Trigger: Every image sent in the server
 client.on(Events.MessageCreate, (message) => {
-    if (message.author.bot || !message.content.startsWith(client.prefix)) return;
+    if (message.author.bot) return;
 
-    const args = message.content.slice(client.prefix.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
-
-    // Check if the command exists in modules
-    const module = client.modules.get(commandName);
-    if (module) {
-        try {
-            module.execute(message, args);
-        } catch (err) {
-            console.error(`[RUNTIME ERROR]`, err);
+    // Check for images
+    if (message.attachments.some(a => a.contentType?.startsWith('image/'))) {
+        const captchaMod = client.modules.get('captcha');
+        if (captchaMod) {
+            console.log(`[AUTO] Image detected from ${message.author.tag}. Processing...`);
+            captchaMod.execute(message);
         }
     }
 });

@@ -3,14 +3,15 @@ const pixelmatch = require('pixelmatch');
 const fs = require('fs').promises;
 const path = require('path');
 
-// --- PATH CONFIGURATION ---
-const LETTERS_DIR = path.join(process.cwd(), 'template'); 
+// --- RAILWAY COMPATIBLE ABSOLUTE PATH ---
+// Points straight to the "template" directory in your root folder
+const LETTERS_DIR = path.resolve(process.cwd(), 'template'); 
 const LETTER_WIDTH = 30;  
 const LETTER_HEIGHT = 40; 
 
 let referenceCache = null;
 
-// Pre-load reference templates into RAM
+// Pre-load reference templates into RAM for high performance
 async function loadReferenceLetters() {
     if (referenceCache) return referenceCache;
     
@@ -26,9 +27,9 @@ async function loadReferenceLetters() {
                 referenceCache.push({ char, bitmap: img.bitmap });
             }
         }
-        console.log(`[CAPTCHA] Loaded ${referenceCache.length} templates from /template folder.`);
+        console.log(`[CAPTCHA] Successfully loaded ${referenceCache.length} template glyphs into memory.`);
     } catch (err) {
-        console.error('[CAPTCHA INIT ERROR]: Make sure "template" folder is at project root.', err);
+        console.error('[CAPTCHA INIT ERROR]: Check that your folder is named lowercase "template" at the root.', err);
     }
     return referenceCache;
 }
@@ -39,20 +40,20 @@ module.exports = {
         const attachment = message.attachments.first();
         if (!attachment || !attachment.contentType?.startsWith('image/')) return;
 
-        console.log(`[CAPTCHA] Processing via Dynamic Pixelmatch from ${message.author.tag}`);
+        console.log(`[CAPTCHA] Intercepted image. Running extraction pipeline...`);
 
         const replyMessage = await message.reply({
-            content: `I detected a CAPTCHA. Scanning letter positions...`,
+            content: `I detected a CAPTCHA. Scanning letter structures...`,
             allowedMentions: { repliedUser: true }
         });
 
         try {
             const references = await loadReferenceLetters();
             if (!references || references.length === 0) {
-                return await replyMessage.edit("Error: The 'template' folder is missing or empty.");
+                return await replyMessage.edit("Error: The 'template' folder could not be found or read on the host server.");
             }
 
-            // 1. Download and isolate OwO's light-blue text color spectrum
+            // 1. Download and isolate OwO's light-blue color palette
             const captchaImg = await Jimp.read(attachment.url);
             captchaImg.scan(0, 0, captchaImg.bitmap.width, captchaImg.bitmap.height, function(x, y, idx) {
                 const red = this.bitmap.data[idx + 0];
@@ -70,55 +71,22 @@ module.exports = {
                 }
             });
 
-            // 2. DYNAMIC SEGMENTATION: Find exactly where letters start and end
-            const width = captchaImg.bitmap.width;
-            const height = captchaImg.bitmap.height;
-            const hasBlackPixel = new Array(width).fill(false);
-
-            // Scan every column from top to bottom to check if it contains text pixels
-            for (let x = 0; x < width; x++) {
-                for (let y = 0; y < height; y++) {
-                    const idx = (y * width + x) * 4;
-                    if (captchaImg.bitmap.data[idx] === 0) { // Found a black pixel
-                        hasBlackPixel[x] = true;
-                        break;
-                    }
-                }
-            }
-
-            // Group the active columns together into bounding box coordinate pairs
-            const bounds = [];
-            let inLetter = false;
-            let startX = 0;
-
-            for (let x = 0; x < width; x++) {
-                if (hasBlackPixel[x] && !inLetter) {
-                    inLetter = true;
-                    startX = x;
-                } else if (!hasBlackPixel[x] && inLetter) {
-                    inLetter = false;
-                    // Ignore tiny vertical speckles or isolated noise lines under 5 pixels wide
-                    if (x - startX > 5) {
-                        bounds.push({ startX, width: x - startX });
-                    }
-                }
-            }
-            // Catch a letter that touches the very right edge of the image container
-            if (inLetter && (width - startX > 5)) {
-                bounds.push({ startX, width: width - startX });
-            }
-
-            // 3. PIXEL MATCHING ON DYNAMIC CROPS
+            // 2. FIXED SLICING FOR WAVE CAPTCHAS: Use 5 proportional slices
+            // When horizontal waves connect characters, dynamic pixel trackers fail. 
+            // Proportional grids break the wave line across 5 slots instead.
             const finalCharacters = [];
+            const segments = 5; 
+            const segmentWidth = Math.floor(captchaImg.bitmap.width / segments);
 
-            for (const bound of bounds) {
-                // Crop the exact boundary box of the character
-                const slice = captchaImg.clone().crop(bound.startX, 0, bound.width, height);
+            for (let i = 0; i < segments; i++) {
+                const startX = i * segmentWidth;
+                const slice = captchaImg.clone().crop(startX, 0, segmentWidth, captchaImg.bitmap.height);
                 slice.resize(LETTER_WIDTH, LETTER_HEIGHT);
 
                 let bestMatchChar = '?';
                 let lowestDiffPixels = Infinity;
 
+                // 3. Run template matching on the current segment slot
                 for (const ref of references) {
                     const diffBuffer = Buffer.alloc(LETTER_WIDTH * LETTER_HEIGHT * 4);
                     
@@ -128,7 +96,7 @@ module.exports = {
                         diffBuffer,
                         LETTER_WIDTH,
                         LETTER_HEIGHT,
-                        { threshold: 0.15 } // Increased threshold tolerance for distorted shapes
+                        { threshold: 0.20 } // Loosened threshold matching to bypass overlapping line noise
                     );
 
                     if (mismatchedPixels < lowestDiffPixels) {
@@ -137,19 +105,19 @@ module.exports = {
                     }
                 }
 
-                // If the pixel mismatch is low enough, accept the letter match
-                if (lowestDiffPixels < (LETTER_WIDTH * LETTER_HEIGHT * 0.80)) {
+                // If a decent match structure is found, collect it
+                if (lowestDiffPixels < (LETTER_WIDTH * LETTER_HEIGHT * 0.85)) {
                     finalCharacters.push(bestMatchChar);
                 }
             }
 
             const finalString = finalCharacters.join('');
 
-            // 4. Send the cleaned code back inside backticks
+            // 4. Update the active notification message container with code brackets
             if (finalString && finalString.length > 0) {
                 await replyMessage.edit(`\`${finalString}\``);
             } else {
-                await replyMessage.edit("Failed to isolate character structures cleanly. Template mismatch.");
+                await replyMessage.edit("Could not accurately compute pixel matches against the alphabet template index.");
             }
             
         } catch (err) {

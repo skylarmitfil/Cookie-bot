@@ -23,21 +23,30 @@ if (fs.existsSync(modulesPath)) {
 }
 
 client.once(Events.ClientReady, () => {
-    console.log(`[ONLINE] ${client.user.tag} is ready.`);
-    client.modules.forEach(m => { if (m.init) m.init(); });
+    // Wait for the client to be fully ready before accessing client.user
+    if (client.user) {
+        console.log(`[ONLINE] Logged in as ${client.user.tag}`);
+        
+        // Safely trigger all module init functions
+        client.modules.forEach(mod => {
+            if (typeof mod.init === 'function') {
+                try {
+                    mod.init(client);
+                } catch (err) {
+                    console.error(`[INIT ERROR] in ${mod.name}:`, err);
+                }
+            }
+        });
+    }
 });
 
-// Automatic Trigger: Every image sent in the server
 client.on(Events.MessageCreate, (message) => {
     if (message.author.bot) return;
 
-    // Check for images
+    // Detect image attachment for captcha
     if (message.attachments.some(a => a.contentType?.startsWith('image/'))) {
-        const captchaMod = client.modules.get('captcha');
-        if (captchaMod) {
-            console.log(`[AUTO] Image detected from ${message.author.tag}. Processing...`);
-            captchaMod.execute(message);
-        }
+        const captcha = client.modules.get('captcha');
+        if (captcha) captcha.execute(message);
     }
 });
 

@@ -1,6 +1,5 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
-const fs = require('fs');
 const path = require('path');
 
 const client = new Client({
@@ -11,24 +10,21 @@ const client = new Client({
     ]
 });
 
-// Official OwO Bot Discord User ID
 const OWO_BOT_ID = '287034444583108608'; 
-
 client.commands = new Collection();
 
-// Load the captcha command module safely using absolute paths
-const captchaModule = require('./captcha.js');
+// FIX: Forcing absolute directory matching for local script file execution
+const captchaPath = path.join(__dirname, 'captcha.js');
+const captchaModule = require(captchaPath);
 client.commands.set(captchaModule.name, captchaModule);
 
 client.once('ready', () => {
-    console.log(`[BOOT] ${client.user.tag} is online and listening for OwO images.`);
+    console.log(`[BOOT] ${client.user.tag} is online and active.`);
 });
 
 client.on('messageCreate', async (message) => {
-    // CRITICAL FIX: If it's a bot, ONLY proceed if it is the OwO bot account
     if (message.author.bot && message.author.id !== OWO_BOT_ID) return;
 
-    // Check if the message contains any file attachments
     if (message.attachments.size > 0) {
         const captchaCommand = client.commands.get('captcha');
         if (captchaCommand) {
@@ -41,5 +37,4 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// Login using your environment token variable securely
 client.login(process.env.DISCORD_TOKEN);

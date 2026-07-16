@@ -1,6 +1,5 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
-const fs = require('fs');
 const path = require('path');
 
 const client = new Client({
@@ -14,34 +13,13 @@ const client = new Client({
 const OWO_BOT_ID = '287034444583108608'; 
 client.commands = new Collection();
 
-// --- SMART PATH RESOLUTION ---
-// This checks all typical sub-directories to find captcha.js automatically
-let resolvedPath = null;
-const potentialPaths = [
-    path.join(__dirname, 'captcha.js'),
-    path.join(__dirname, 'commands', 'captcha.js'),
-    path.join(__dirname, 'src', 'captcha.js'),
-    path.join(__dirname, 'src', 'commands', 'captcha.js')
-];
-
-for (const p of potentialPaths) {
-    if (fs.existsSync(p)) {
-        resolvedPath = p;
-        break;
-    }
-}
-
-if (!resolvedPath) {
-    console.error("[CRITICAL] captcha.js could not be found anywhere in the repository structure!");
-    process.exit(1);
-}
-
-console.log(`[BOOT] Found captcha module at: ${resolvedPath}`);
-const captchaModule = require(resolvedPath);
+// FIX: Point directly inside your 'modules' directory to find captcha.js
+const captchaPath = path.join(__dirname, 'modules', 'captcha.js');
+const captchaModule = require(captchaPath);
 client.commands.set(captchaModule.name, captchaModule);
 
 client.once('ready', () => {
-    console.log(`[BOOT] ${client.user.tag} is online and active.`);
+    console.log(`[BOOT] ${client.user.tag} is online and listening for OwO images.`);
 });
 
 client.on('messageCreate', async (message) => {

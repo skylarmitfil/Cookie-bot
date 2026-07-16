@@ -3,9 +3,6 @@ const { ActivityType } = require('discord.js');
 module.exports = {
     name: 'presence-manager',
     init: (client) => {
-        // Double-check user is defined
-        if (!client.user) return; 
-
         try {
             client.user.setPresence({
                 activities: [{

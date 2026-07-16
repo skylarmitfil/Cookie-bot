@@ -13,13 +13,14 @@ const client = new Client({
 const OWO_BOT_ID = '287034444583108608'; 
 client.commands = new Collection();
 
-// FIX: Point directly inside your 'modules' directory to find captcha.js
+// Absolute directory tracking inside the modules/ subfolder
 const captchaPath = path.join(__dirname, 'modules', 'captcha.js');
 const captchaModule = require(captchaPath);
 client.commands.set(captchaModule.name, captchaModule);
 
-client.once('ready', () => {
-    console.log(`[BOOT] ${client.user.tag} is online and listening for OwO images.`);
+// FIXED: Using the modern clientReady token name to satisfy the deprecation notice
+client.once('clientReady', () => {
+    console.log(`[BOOT] ${client.user.tag} is online and active on Railway.`);
 });
 
 client.on('messageCreate', async (message) => {

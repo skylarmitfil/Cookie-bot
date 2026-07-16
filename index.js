@@ -13,24 +13,25 @@ const client = new Client({
 
 client.modules = new Map();
 
-// Load modules
-const modulesPath = path.join(__dirname, 'modules');
+// FIX: Use path.resolve to ensure absolute paths are found
+const modulesPath = path.resolve(__dirname, 'modules');
+
+console.log(`[SYSTEM] Looking for modules in: ${modulesPath}`);
+
 if (fs.existsSync(modulesPath)) {
     fs.readdirSync(modulesPath).filter(file => file.endsWith('.js')).forEach(file => {
         const mod = require(path.join(modulesPath, file));
-        if (mod.name) client.modules.set(mod.name, mod);
+        if (mod.name) {
+            client.modules.set(mod.name, mod);
+            // If the module has an init function, run it now
+            if (typeof mod.init === 'function') {
+                mod.init();
+                console.log(`[SYSTEM] Initialized module: ${mod.name}`);
+            }
+        }
     });
+} else {
+    console.error(`[ERROR] Modules directory not found at ${modulesPath}`);
 }
-
-client.on(Events.MessageCreate, async (message) => {
-    // Ignore bots
-    if (message.author.bot) return;
-
-    // Check for images
-    if (message.attachments.some(a => a.contentType?.startsWith('image/'))) {
-        const captchaMod = client.modules.get('captcha');
-        if (captchaMod) captchaMod.execute(message);
-    }
-});
 
 client.login(process.env.DISCORD_TOKEN);

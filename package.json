@@ -8,9 +8,6 @@
   },
   "dependencies": {
     "discord.js": "^14.18.0",
-    "dotenv": "^16.4.5",
-    "jimp": "^0.22.10",
-    "pixelmatch": "^7.2.0",
-    "tesseract.js": "^5.1.1"
+    "dotenv": "^16.4.5"
   }
 }

@@ -11,15 +11,16 @@ const client = new Client({
     ]
 });
 
+// Initialize the collection for commands
 client.modules = new Map();
 const modulesPath = path.resolve(__dirname, 'modules');
 
-// Load all modules safely
+// 1. Load all modules
 if (fs.existsSync(modulesPath)) {
     fs.readdirSync(modulesPath).filter(file => file.endsWith('.js')).forEach(file => {
         try {
             const mod = require(path.join(modulesPath, file));
-            if (mod && mod.name) {
+            if (mod && mod.name && typeof mod.execute === 'function') {
                 client.modules.set(mod.name.toLowerCase(), mod);
                 console.log(`[LOADER] Loaded: ${mod.name}`);
             }
@@ -29,8 +30,29 @@ if (fs.existsSync(modulesPath)) {
     });
 }
 
+// 2. Client ready event
 client.once(Events.ClientReady, () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
 });
 
+// 3. Message handler (Crucial for responding to commands)
+client.on(Events.MessageCreate, async (message) => {
+    // Ignore bots and non-prefixed messages
+    if (message.author.bot || !message.content.startsWith('!')) return;
+
+    const args = message.content.slice(1).trim().split(/ +/);
+    const commandName = args.shift().toLowerCase();
+
+    // Check if the command exists in our loaded modules
+    if (client.modules.has(commandName)) {
+        try {
+            await client.modules.get(commandName).execute(message, args);
+        } catch (err) {
+            console.error(`[COMMAND ERROR] Failed to execute ${commandName}:`, err);
+            message.reply('There was an error executing that command.');
+        }
+    }
+});
+
+// 4. Log in
 client.login(process.env.DISCORD_TOKEN);

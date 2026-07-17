@@ -1,80 +1,69 @@
 module.exports = {
-    name: 'owoReminders',
+  name: 'owoReminders',
+  execute: async (message, prefix) => {
+    const content = message.content.toLowerCase().trim();
+    const userId = message.author.id;
+    const prefsModule = message.client.modules.get('userPreferences');
 
-    execute: async (message, prefix) => {
-        const content = message.content.toLowerCase().trim();
-        const userId = message.author.id;
-        
-        const prefsModule = message.client.modules.get('userPreferences');
-        if (!prefsModule) return;
+    if (!prefsModule) return;
 
-        if (content.startsWith(`${prefix}hunt`) || content.startsWith(`${prefix}battle`) || content.startsWith('owo hunt') || content.startsWith('owo h')) {
-            try {
-                const isEnabled = prefsModule.getSetting(userId, 'Hunt/Battle', 'enabled');
-                if (!isEnabled) return;
+    // 1. Define configurations with your custom emoji formats
+    const commandConfig = [
+      {
+        settingKey: 'Hunt/Battle',
+        cooldown: 16000,
+        emoji: '<:hunt_battle:1520116392756772944>', // <-- Replace with your custom emoji format
+        matches: () =>
+          content.startsWith(`${prefix}hunt`) ||
+          content.startsWith(`${prefix}battle`) ||
+          /^(owo|uwu)\s+(hunt|h|battle|b)\b/.test(content)
+      },
+      {
+        settingKey: 'Pray/Curse',
+        cooldown: 300000,
+        emoji: '<:Praycurse:1520116373408317570>', // <-- Replace with your custom emoji format
+        matches: () =>
+          content.startsWith(`${prefix}pray`) ||
+          content.startsWith(`${prefix}curse`) ||
+          /^(owo|uwu)\s+(pray|curse|p|c)\b/.test(content)
+      },
+      {
+        settingKey: 'OwO',
+        cooldown: 10000,
+        emoji: '<:owo:1527608869377933463>', // <-- Replace with your custom emoji format
+        matches: () => /^(owo|uwu)(\s|$)/.test(content)
+      }
+    ];
 
-                const usePing = prefsModule.getSetting(userId, 'Hunt/Battle', 'ping');
-                const useReply = prefsModule.getSetting(userId, 'Hunt/Battle', 'reply');
+    // 2. Find which action triggered the reminder
+    const matchedCommand = commandConfig.find(cmd => cmd.matches());
+    if (!matchedCommand) return;
 
-                setTimeout(async () => {
-                    const alertMsg = `${usePing ? `<@${userId}>` : `**${message.author.username}**`}, your **Hunt/Battle** cooldown is over! ⚔️`;
-                    
-                    if (useReply) {
-                        await message.reply({ content: alertMsg }).catch(() => {});
-                    } else {
-                        await message.channel.send({ content: alertMsg }).catch(() => {});
-                    }
-                }, 16000);
+    try {
+      const { settingKey, cooldown, emoji } = matchedCommand;
 
-            } catch (err) {
-                console.error('[REMINDER ERROR] Hunt calculation failure:', err);
-            }
+      // 3. Early exit if the user turned off this specific reminder
+      if (!prefsModule.getSetting(userId, settingKey, 'enabled')) return;
+
+      const usePing = prefsModule.getSetting(userId, settingKey, 'ping');
+      const useReply = prefsModule.getSetting(userId, settingKey, 'reply');
+
+      // 4. Single reusable timer logic
+      setTimeout(async () => {
+        const userMention = usePing ? `<@${userId}>` : `**${message.author.username}**`;
+        const alertMsg = `${userMention}, your **${settingKey}** cooldown is over! ${emoji}`;
+
+        const payload = { content: alertMsg };
+
+        if (useReply) {
+          await message.reply(payload).catch(() => {});
+        } else {
+          await message.channel.send(payload).catch(() => {});
         }
+      }, cooldown);
 
-        else if (content.startsWith(`${prefix}pray`) || content.startsWith(`${prefix}curse`) || content.startsWith('owo pray') || content.startsWith('owo p')) {
-            try {
-                const isEnabled = prefsModule.getSetting(userId, 'Pray/Curse', 'enabled');
-                if (!isEnabled) return;
-
-                const usePing = prefsModule.getSetting(userId, 'Pray/Curse', 'ping');
-                const useReply = prefsModule.getSetting(userId, 'Pray/Curse', 'reply');
-
-                setTimeout(async () => {
-                    const alertMsg = `${usePing ? `<@${userId}>` : `**${message.author.username}**`}, your **Pray/Curse** cooldown is refreshed! 🙏`;
-                    
-                    if (useReply) {
-                        await message.reply({ content: alertMsg }).catch(() => {});
-                    } else {
-                        await message.channel.send({ content: alertMsg }).catch(() => {});
-                    }
-                }, 300000);
-
-            } catch (err) {
-                console.error('[REMINDER ERROR] Pray calculation failure:', err);
-            }
-        }
-
-        else if (content === 'owo' || content === 'uwu' || content.startsWith('owo ') || content.startsWith('uwu ')) {
-            try {
-                const isEnabled = prefsModule.getSetting(userId, 'OwO', 'enabled');
-                if (!isEnabled) return;
-
-                const usePing = prefsModule.getSetting(userId, 'OwO', 'ping');
-                const useReply = prefsModule.getSetting(userId, 'OwO', 'reply');
-
-                setTimeout(async () => {
-                    const alertMsg = `${usePing ? `<@${userId}>` : `**${message.author.username}**`}, your **OwO** ready status is clear! 🦊`;
-                    
-                    if (useReply) {
-                        await message.reply({ content: alertMsg }).catch(() => {});
-                    } else {
-                        await message.channel.send({ content: alertMsg }).catch(() => {});
-                    }
-                }, 10000);
-
-            } catch (err) {
-                console.error('[REMINDER ERROR] OwO calculation failure:', err);
-            }
-        }
+    } catch (err) {
+      console.error(`[REMINDER ERROR] ${matchedCommand.settingKey} system failure:`, err);
     }
+  }
 };

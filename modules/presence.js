@@ -3,18 +3,18 @@ const { ActivityType, Events } = require('discord.js');
 module.exports = {
     name: 'presence-manager',
     init: (client) => {
-        // We wait for the client to be ready before setting the presence
         client.once(Events.ClientReady, () => {
             try {
                 client.user.setPresence({
                     activities: [{
                         name: 'Watching Your OwO Commands',
-                        type: ActivityType.Watching, // Changed to Watching
-                        // URL only works for Streaming; for others, it's not needed
+                        type: ActivityType.Streaming, 
+                        // You MUST use a valid twitch.tv URL for the 'Watch' button to appear
+                        url: 'https://m.youtube.com/watch?v=h7oSlZL0tEM&list=RDh7oSlZL0tEM&start_radio=1' 
                     }],
-                    status: 'streaming' 
+                    status: 'online'
                 });
-                console.log('[PRESENCE] Status set successfully!');
+                console.log('[PRESENCE] Streaming status applied!');
             } catch (error) {
                 console.error('[PRESENCE ERROR]:', error);
             }

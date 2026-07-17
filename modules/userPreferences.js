@@ -2,12 +2,10 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentTyp
 const fs = require('fs');
 const path = require('path');
 
-// Use a local folder for data to avoid permission issues
-const DATA_DIR = path.join(__dirname, '../data');
+const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'userSettings.json');
 let userSettings = new Map();
 
-// Load storage
 try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     if (fs.existsSync(DATA_FILE)) {
@@ -17,8 +15,7 @@ try {
 } catch (error) { console.error(`[STORAGE ERROR]: ${error.message}`); }
 
 function saveSettingsData() {
-    const obj = Object.fromEntries(userSettings);
-    fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
+    fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries(userSettings), null, 2), 'utf8');
 }
 
 function getOrCreateUserConfig(userId) {
@@ -36,21 +33,21 @@ function getOrCreateUserConfig(userId) {
 function buildConfigPayload(userId, category, avatarURL) {
     const config = getOrCreateUserConfig(userId)[category];
     const embed = new EmbedBuilder()
-        .setTitle(`Settings for ${category}`)
+        .setTitle(`${category} Reminder Settings`)
         .setDescription(`${config.enabled ? '✅' : '❌'} **Enabled**\n${config.ping ? '✅' : '❌'} **Ping**\n${config.reply ? '✅' : '❌'} **Reply**`)
         .setThumbnail(avatarURL)
         .setColor(config.enabled ? 0x57F287 : 0xED4245);
 
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`r_toggle_${category}_enabled_${userId}`).setLabel(category).setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId(`r_toggle_${category}_ping_${userId}`).setLabel(config.ping ? 'ping' : 'silent').setStyle(config.ping ? ButtonStyle.Success : ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`r_toggle_${category}_reply_${userId}`).setLabel(config.reply ? 'reply' : 'send').setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId(`r_toggle_${category}_enabled_${userId}`).setLabel('Toggle').setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`r_toggle_${category}_ping_${userId}`).setLabel(config.ping ? 'Ping: ON' : 'Ping: OFF').setStyle(config.ping ? ButtonStyle.Success : ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`r_toggle_${category}_reply_${userId}`).setLabel(config.reply ? 'Reply: ON' : 'Reply: OFF').setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
     );
     return { embeds: [embed], components: [row] };
 }
 
 module.exports = {
-    name: 'c', // The bot now responds to !c
+    name: 'c',
     async execute(message, args) {
         const subCommand = args[0]?.toLowerCase();
         let targetCategory = '';
@@ -58,11 +55,10 @@ module.exports = {
         else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
         else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
 
-        if (!targetCategory) return message.reply('Usage: `!c <hunt|pray|owo>`');
+        if (!targetCategory) return message.reply('Usage: `.c <hunt|pray|owo>`');
 
         const userId = message.author.id;
-        const payload = buildConfigPayload(userId, targetCategory, message.author.displayAvatarURL());
-        const menuMessage = await message.reply(payload);
+        const menuMessage = await message.reply(buildConfigPayload(userId, targetCategory, message.author.displayAvatarURL()));
 
         const collector = menuMessage.createMessageComponentCollector({ componentType: ComponentType.Button, idle: 30000 });
         collector.on('collect', async (interaction) => {

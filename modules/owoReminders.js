@@ -1,6 +1,10 @@
 module.exports = {
-  name: 'owoReminders',
+  // We use exactly 'oworeminders' here to ensure your index.js Map matches it perfectly
+  name: 'oworeminders',
   execute: async (message, prefix) => {
+    // 1. DIAGNOSTIC CONSOLE LOG
+    console.log(`[OWOREMINDERS] File executed! Reading: "${message?.content}" from user: ${message?.author?.id}`);
+
     // Safety guard to prevent crashes from empty/system/bot messages
     if (!message || !message.content || message.author?.bot) return;
 
@@ -8,10 +12,7 @@ module.exports = {
     const userId = message.author.id;
     const cleanPrefix = (prefix || '').toLowerCase();
     
-    const prefsModule = message.client?.modules?.get('userPreferences');
-    if (!prefsModule) return;
-
-    // 1. Define configurations with verified match patterns
+    // 2. Configurations array
     const commandConfig = [
       {
         settingKey: 'Hunt/Battle',
@@ -39,7 +40,7 @@ module.exports = {
       }
     ];
 
-    // 2. Find which action triggered the reminder
+    // 3. Find which action triggered the reminder
     const matchedCommand = commandConfig.find(cmd => {
       try {
         return cmd.matches();
@@ -48,24 +49,43 @@ module.exports = {
       }
     });
     
-    if (!matchedCommand) return;
+    if (!matchedCommand) {
+      console.log(`[OWOREMINDERS] Message did not match any tracking regex patterns.`);
+      return;
+    }
 
     try {
       const { settingKey, cooldown, emoji } = matchedCommand;
+      console.log(`[OWOREMINDERS] Pattern hit on: ${settingKey}`);
 
-      // 3. User setting validation check with safe fallbacks
-      const settingRaw = prefsModule.getSetting(userId, settingKey, 'enabled');
-      // If the setting is missing (undefined), default it to true
-      const isEnabled = settingRaw === undefined ? true : settingRaw;
-      if (!isEnabled) return;
+      // Safe Defaults
+      let isEnabled = true;
+      let usePing = true;
+      let useReply = false;
 
-      const usePingRaw = prefsModule.getSetting(userId, settingKey, 'ping');
-      const usePing = usePingRaw === undefined ? true : usePingRaw;
+      // 4. Ultra-Safe Module Connection Guard
+      const prefsModule = message.client?.modules?.get('userPreferences');
+      if (prefsModule && typeof prefsModule.getSetting === 'function') {
+        const settingRaw = prefsModule.getSetting(userId, settingKey, 'enabled');
+        if (settingRaw !== undefined) isEnabled = settingRaw;
 
-      const useReplyRaw = prefsModule.getSetting(userId, settingKey, 'reply');
-      const useReply = useReplyRaw === undefined ? false : useReplyRaw;
+        const usePingRaw = prefsModule.getSetting(userId, settingKey, 'ping');
+        if (usePingRaw !== undefined) usePing = usePingRaw;
 
-      // 4. Single execution reminder timer
+        const useReplyRaw = prefsModule.getSetting(userId, settingKey, 'reply');
+        if (useReplyRaw !== undefined) useReply = useReplyRaw;
+      } else {
+        console.log('[OWOREMINDERS] Warning: userPreferences missing or incompatible. Defaulting to enabled.');
+      }
+
+      if (!isEnabled) {
+        console.log(`[OWOREMINDERS] User explicitly disabled this reminder. Aborting.`);
+        return;
+      }
+
+      console.log(`[OWOREMINDERS] Queueing reminder alert for user in ${cooldown}ms.`);
+
+      // 5. Cooldown Execution Timer
       setTimeout(async () => {
         try {
           const username = message.author?.username || 'User';
@@ -73,17 +93,17 @@ module.exports = {
           const alertMsg = `${userMention}, your **${settingKey}** cooldown is over! ${emoji}`;
 
           if (useReply) {
-            await message.reply({ content: alertMsg }).catch(() => {});
+            await message.reply({ content: alertMsg }).catch((e) => console.error('[OWOREMINDERS REPLY FAIL]', e));
           } else {
-            await message.channel.send({ content: alertMsg }).catch(() => {});
+            await message.channel.send({ content: alertMsg }).catch((e) => console.error('[OWOREMINDERS SEND FAIL]', e));
           }
         } catch (timeoutErr) {
-          console.error('[REMINDER TIMEOUT ERROR]:', timeoutErr);
+          console.error('[OWOREMINDERS TIMEOUT RUNTIME ERROR]:', timeoutErr);
         }
       }, cooldown);
 
     } catch (err) {
-      console.error(`[REMINDER ERROR] ${matchedCommand.settingKey} system failure:`, err);
+      console.error(`[OWOREMINDERS SYSTEM FAILURE]:`, err);
     }
   }
 };

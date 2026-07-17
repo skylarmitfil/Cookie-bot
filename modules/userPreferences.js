@@ -42,7 +42,7 @@ function getOrCreateUserConfig(userId) {
 function buildConfigPayload(userId, category, avatarURL) {
     const config = getOrCreateUserConfig(userId)[category];
     
-    // Custom emojis for categories
+    // Custom emojis mapping for the buttons
     const EMOJIS = {
         'Hunt/Battle': '<:hunt_battle:1520116392756772944>',
         'Pray/Curse': '<:Praycurse:1520116373408317570>',
@@ -50,11 +50,11 @@ function buildConfigPayload(userId, category, avatarURL) {
     };
 
     const embed = new EmbedBuilder()
-        .setTitle(`${EMOJIS[category]} ${category} Settings`)
+        .setTitle(`${category} Settings`)
         .setDescription(
-            `${config.enabled ? '✅' : '❌'} **Enabled**\n` +
-            `${config.ping ? '✅' : '❌'} **Ping**\n` +
-            `${config.reply ? '✅' : '❌'} **Reply**`
+            `**Enabled:** ${config.enabled ? 'Yes ✅' : 'No ❌'}\n` +
+            `**Ping:** ${config.ping ? 'ON 🔔' : 'OFF 🔕'}\n` +
+            `**Reply:** ${config.reply ? 'ON 💬' : 'OFF ✉️'}`
         )
         .setThumbnail(avatarURL)
         .setColor(config.enabled ? 0x57F287 : 0xED4245);
@@ -62,7 +62,7 @@ function buildConfigPayload(userId, category, avatarURL) {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`r_toggle_${category}_enabled_${userId}`)
-            .setLabel(config.enabled ? 'Enabled ✅' : 'Disabled ❌')
+            .setLabel(config.enabled ? `Enabled ${EMOJIS[category]}` : `Disabled ${EMOJIS[category]}`)
             .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
         new ButtonBuilder()
             .setCustomId(`r_toggle_${category}_ping_${userId}`)

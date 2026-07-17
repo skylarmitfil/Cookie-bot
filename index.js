@@ -20,8 +20,14 @@ if (fs.existsSync(modulesPath)) {
     fs.readdirSync(modulesPath).filter(file => file.endsWith('.js')).forEach(file => {
         try {
             const mod = require(path.join(modulesPath, file));
-            if (mod && mod.name && typeof mod.execute === 'function') {
+            if (mod && mod.name) {
                 client.modules.set(mod.name.toLowerCase(), mod);
+                
+                // If the module has an init function, run it immediately
+                if (typeof mod.init === 'function') {
+                    mod.init(client);
+                }
+                
                 console.log(`[LOADER] Loaded: ${mod.name}`);
             }
         } catch (err) {
@@ -35,7 +41,7 @@ client.once(Events.ClientReady, () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
 });
 
-// 3. Message handler (Crucial for responding to commands)
+// 3. Message handler
 client.on(Events.MessageCreate, async (message) => {
     // Ignore bots and non-prefixed messages
     if (message.author.bot || !message.content.startsWith('!')) return;

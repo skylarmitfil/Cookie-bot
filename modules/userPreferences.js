@@ -41,8 +41,12 @@ function getOrCreateUserConfig(userId) {
 
 function buildConfigPayload(userId, category, avatarURL) {
     const config = getOrCreateUserConfig(userId)[category];
+    
+    // Determining emoji for the category title
+    const emoji = category === 'Hunt/Battle' ? '⚔️' : category === 'Pray/Curse' ? '🙏' : '🐱';
+    
     const embed = new EmbedBuilder()
-        .setTitle(`${category} Reminder Settings`)
+        .setTitle(`${emoji} ${category} Settings`)
         .setDescription(
             `${config.enabled ? '✅' : '❌'} **Enabled**\n` +
             `${config.ping ? '✅' : '❌'} **Ping**\n` +
@@ -62,7 +66,6 @@ function buildConfigPayload(userId, category, avatarURL) {
 module.exports = {
     name: 'c',
     
-    // This allows owoReminders.js to access your settings
     getSetting(userId, category, settingKey) {
         const userConfig = getOrCreateUserConfig(userId);
         return userConfig[category][settingKey];
@@ -91,7 +94,6 @@ module.exports = {
             const parts = interaction.customId.split('_');
             const config = getOrCreateUserConfig(userId);
             
-            // Toggle the clicked setting
             config[parts[2]][parts[3]] = !config[parts[2]][parts[3]];
             saveSettingsData();
             

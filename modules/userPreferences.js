@@ -42,11 +42,15 @@ function getOrCreateUserConfig(userId) {
 function buildConfigPayload(userId, category, avatarURL) {
     const config = getOrCreateUserConfig(userId)[category];
     
-    // Determining emoji for the category title
-    const emoji = category === 'Hunt/Battle' ? '⚔️' : category === 'Pray/Curse' ? '🙏' : '🐱';
-    
+    // Custom emojis for categories
+    const EMOJIS = {
+        'Hunt/Battle': '<:hunt_battle:1520116392756772944>',
+        'Pray/Curse': '<:Praycurse:1520116373408317570>',
+        'OwO': '<:owo:1527608869377933463>'
+    };
+
     const embed = new EmbedBuilder()
-        .setTitle(`${emoji} ${category} Settings`)
+        .setTitle(`${EMOJIS[category]} ${category} Settings`)
         .setDescription(
             `${config.enabled ? '✅' : '❌'} **Enabled**\n` +
             `${config.ping ? '✅' : '❌'} **Ping**\n` +
@@ -56,9 +60,18 @@ function buildConfigPayload(userId, category, avatarURL) {
         .setColor(config.enabled ? 0x57F287 : 0xED4245);
 
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`r_toggle_${category}_enabled_${userId}`).setLabel('Toggle').setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId(`r_toggle_${category}_ping_${userId}`).setLabel(config.ping ? 'Ping: ON' : 'Ping: OFF').setStyle(config.ping ? ButtonStyle.Success : ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`r_toggle_${category}_reply_${userId}`).setLabel(config.reply ? 'Reply: ON' : 'Reply: OFF').setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
+        new ButtonBuilder()
+            .setCustomId(`r_toggle_${category}_enabled_${userId}`)
+            .setLabel(config.enabled ? 'Enabled ✅' : 'Disabled ❌')
+            .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
+        new ButtonBuilder()
+            .setCustomId(`r_toggle_${category}_ping_${userId}`)
+            .setLabel(config.ping ? 'Ping ON 🔔' : 'Ping OFF 🔕')
+            .setStyle(config.ping ? ButtonStyle.Success : ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId(`r_toggle_${category}_reply_${userId}`)
+            .setLabel(config.reply ? 'Reply ON 💬' : 'Reply OFF ✉️')
+            .setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
     );
     return { embeds: [embed], components: [row] };
 }
@@ -74,6 +87,7 @@ module.exports = {
     async execute(message, args) {
         const subCommand = args[0]?.toLowerCase();
         let targetCategory = '';
+        
         if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
         else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
         else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
@@ -89,11 +103,12 @@ module.exports = {
         const collector = menuMessage.createMessageComponentCollector({ componentType: ComponentType.Button, idle: 30000 });
         
         collector.on('collect', async (interaction) => {
-            if (interaction.user.id !== userId) return interaction.reply({ content: 'Not your menu!', ephemeral: true });
+            if (interaction.user.id !== userId) return interaction.reply({ content: '❌ Not your menu!', ephemeral: true });
             
             const parts = interaction.customId.split('_');
             const config = getOrCreateUserConfig(userId);
             
+            // Toggle the setting
             config[parts[2]][parts[3]] = !config[parts[2]][parts[3]];
             saveSettingsData();
             

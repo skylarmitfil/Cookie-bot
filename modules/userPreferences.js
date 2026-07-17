@@ -27,6 +27,13 @@ function saveSettingsData() {
     }
 }
 
+// Internal mapping safe for custom IDs (no slashes allowed)
+const CATEGORY_MAP = {
+    'hunt': 'Hunt/Battle',
+    'pray': 'Pray/Curse',
+    'owo': 'OwO'
+};
+
 function getOrCreateUserConfig(userId) {
     if (!userSettings.has(userId)) {
         userSettings.set(userId, {
@@ -39,18 +46,18 @@ function getOrCreateUserConfig(userId) {
     return userSettings.get(userId);
 }
 
-function buildConfigPayload(userId, category, avatarURL) {
-    const config = getOrCreateUserConfig(userId)[category];
+function buildConfigPayload(userId, shortCategory, avatarURL) {
+    const fullCategory = CATEGORY_MAP[shortCategory];
+    const config = getOrCreateUserConfig(userId)[fullCategory];
     
-    // Custom emojis mapping for the buttons
     const EMOJIS = {
-        'Hunt/Battle': '<:hunt_battle:1520116392756772944>',
-        'Pray/Curse': '<:Praycurse:1520116373408317570>',
-        'OwO': '<:owo:1527608869377933463>'
+        'hunt': '<:hunt_battle:1520116392756772944>',
+        'pray': '<:Praycurse:1520116373408317570>',
+        'owo': '<:owo:1527608869377933463>'
     };
 
     const embed = new EmbedBuilder()
-        .setTitle(`${category} Settings`)
+        .setTitle(`${fullCategory} Settings`)
         .setDescription(
             `**Enabled:** ${config.enabled ? 'Yes ✅' : 'No ❌'}\n` +
             `**Ping:** ${config.ping ? 'ON 🔔' : 'OFF 🔕'}\n` +
@@ -61,15 +68,15 @@ function buildConfigPayload(userId, category, avatarURL) {
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId(`r_toggle_${category}_enabled_${userId}`)
-            .setLabel(config.enabled ? `Enabled ${EMOJIS[category]}` : `Disabled ${EMOJIS[category]}`)
+            .setCustomId(`r_toggle_${shortCategory}_enabled_${userId}`)
+            .setLabel(config.enabled ? `Enabled ${EMOJIS[shortCategory]}` : `Disabled ${EMOJIS[shortCategory]}`)
             .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
         new ButtonBuilder()
-            .setCustomId(`r_toggle_${category}_ping_${userId}`)
+            .setCustomId(`r_toggle_${shortCategory}_ping_${userId}`)
             .setLabel(config.ping ? 'Ping ON 🔔' : 'Ping OFF 🔕')
             .setStyle(config.ping ? ButtonStyle.Success : ButtonStyle.Secondary),
         new ButtonBuilder()
-            .setCustomId(`r_toggle_${category}_reply_${userId}`)
+            .setCustomId(`r_toggle_${shortCategory}_reply_${userId}`)
             .setLabel(config.reply ? 'Reply ON 💬' : 'Reply OFF ✉️')
             .setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
     );
@@ -86,33 +93,53 @@ module.exports = {
 
     async execute(message, args) {
         const subCommand = args[0]?.toLowerCase();
-        let targetCategory = '';
+        let shortCategory = '';
         
-        if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
-        else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
-        else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
+        if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) shortCategory = 'hunt';
+        else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) shortCategory = 'pray';
+        else if (['owo', 'uwu', 'o'].includes(subCommand)) shortCategory = 'owo';
 
-        if (!targetCategory) return message.reply('Usage: `.c <hunt|pray|owo>`');
+        if (!shortCategory) return message.reply('Usage: `.c <hunt|pray|owo>`');
 
         const userId = message.author.id;
         const avatarURL = message.author.displayAvatarURL();
-        const payload = buildConfigPayload(userId, targetCategory, avatarURL);
+        const payload = buildConfigPayload(userId, shortCategory, avatarURL);
         
         const menuMessage = await message.reply(payload);
 
-        const collector = menuMessage.createMessageComponentCollector({ componentType: ComponentType.Button, idle: 30000 });
+        const collector = menuMessage.createMessageComponentCollector({ 
+            componentType: ComponentType.Button, 
+            idle: 30000 
+        });
         
         collector.on('collect', async (interaction) => {
-            if (interaction.user.id !== userId) return interaction.reply({ content: '❌ Not your menu!', ephemeral: true });
+            if (interaction.user.id !== userId) {
+                return interaction.reply({ content: '❌ Not your menu!', ephemeral: true });
+            }
             
             const parts = interaction.customId.split('_');
+            const clickedShortCategory = parts[2]; // 'hunt', 'pray', or 'owo'
+            const settingKey = parts[3];           // 'enabled', 'ping', or 'reply'
+            
+            const fullCategory = CATEGORY_MAP[clickedShortCategory];
             const config = getOrCreateUserConfig(userId);
             
-            // Toggle the setting
-            config[parts[2]][parts[3]] = !config[parts[2]][parts[3]];
+            // Toggle the setting safely
+            config[fullCategory][settingKey] = !config[fullCategory][settingKey];
             saveSettingsData();
             
-            await interaction.update(buildConfigPayload(userId, parts[2], avatarURL));
+            await interaction.update(buildConfigPayload(userId, clickedShortCategory, avatarURL));
+        });
+
+        // Clean up components on idle timeout to completely avoid memory leaks
+        collector.on('end', async () => {
+            try {
+                const disabledRow = ActionRowBuilder.from(payload.components[0]);
+                disabledRow.components.forEach(btn => btn.setDisabled(true));
+                await menuMessage.edit({ components: [disabledRow] });
+            } catch (err) {
+                // Fails silently if message was deleted by user
+            }
         });
     }
 };

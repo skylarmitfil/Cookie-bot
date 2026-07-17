@@ -6,16 +6,25 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'userSettings.json');
 let userSettings = new Map();
 
+// --- STORAGE INITIALIZATION ---
 try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     if (fs.existsSync(DATA_FILE)) {
         const rawData = fs.readFileSync(DATA_FILE, 'utf8');
-        if (rawData.trim()) userSettings = new Map(Object.entries(JSON.parse(rawData)));
+        if (rawData.trim()) {
+            userSettings = new Map(Object.entries(JSON.parse(rawData)));
+        }
     }
-} catch (error) { console.error(`[STORAGE ERROR]: ${error.message}`); }
+} catch (error) {
+    console.error(`[STORAGE ERROR]: ${error.message}`);
+}
 
 function saveSettingsData() {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries(userSettings), null, 2), 'utf8');
+    try {
+        fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries(userSettings), null, 2), 'utf8');
+    } catch (error) {
+        console.error(`[STORAGE ERROR]: Failed to save data: ${error.message}`);
+    }
 }
 
 function getOrCreateUserConfig(userId) {
@@ -34,7 +43,11 @@ function buildConfigPayload(userId, category, avatarURL) {
     const config = getOrCreateUserConfig(userId)[category];
     const embed = new EmbedBuilder()
         .setTitle(`${category} Reminder Settings`)
-        .setDescription(`${config.enabled ? '✅' : '❌'} **Enabled**\n${config.ping ? '✅' : '❌'} **Ping**\n${config.reply ? '✅' : '❌'} **Reply**`)
+        .setDescription(
+            `${config.enabled ? '✅' : '❌'} **Enabled**\n` +
+            `${config.ping ? '✅' : '❌'} **Ping**\n` +
+            `${config.reply ? '✅' : '❌'} **Reply**`
+        )
         .setThumbnail(avatarURL)
         .setColor(config.enabled ? 0x57F287 : 0xED4245);
 
@@ -48,6 +61,13 @@ function buildConfigPayload(userId, category, avatarURL) {
 
 module.exports = {
     name: 'c',
+    
+    // This allows owoReminders.js to access your settings
+    getSetting(userId, category, settingKey) {
+        const userConfig = getOrCreateUserConfig(userId);
+        return userConfig[category][settingKey];
+    },
+
     async execute(message, args) {
         const subCommand = args[0]?.toLowerCase();
         let targetCategory = '';
@@ -58,16 +78,24 @@ module.exports = {
         if (!targetCategory) return message.reply('Usage: `.c <hunt|pray|owo>`');
 
         const userId = message.author.id;
-        const menuMessage = await message.reply(buildConfigPayload(userId, targetCategory, message.author.displayAvatarURL()));
+        const avatarURL = message.author.displayAvatarURL();
+        const payload = buildConfigPayload(userId, targetCategory, avatarURL);
+        
+        const menuMessage = await message.reply(payload);
 
         const collector = menuMessage.createMessageComponentCollector({ componentType: ComponentType.Button, idle: 30000 });
+        
         collector.on('collect', async (interaction) => {
             if (interaction.user.id !== userId) return interaction.reply({ content: 'Not your menu!', ephemeral: true });
+            
             const parts = interaction.customId.split('_');
             const config = getOrCreateUserConfig(userId);
+            
+            // Toggle the clicked setting
             config[parts[2]][parts[3]] = !config[parts[2]][parts[3]];
             saveSettingsData();
-            await interaction.update(buildConfigPayload(userId, parts[2], message.author.displayAvatarURL()));
+            
+            await interaction.update(buildConfigPayload(userId, parts[2], avatarURL));
         });
     }
 };

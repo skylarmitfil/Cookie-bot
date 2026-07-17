@@ -16,7 +16,7 @@ module.exports = {
       {
         settingKey: 'Hunt/Battle',
         cooldown: 16000,
-        emoji: '<:hunt_battle:1520116392756772944>', 
+        emoji: '<:hunt_battle:1520116392756772944>',
         matches: () =>
           (cleanPrefix && content.startsWith(`${cleanPrefix}hunt`)) ||
           (cleanPrefix && content.startsWith(`${cleanPrefix}battle`)) ||
@@ -25,7 +25,7 @@ module.exports = {
       {
         settingKey: 'Pray/Curse',
         cooldown: 300000,
-        emoji: '<:Praycurse:1520116373408317570>', 
+        emoji: '<:Praycurse:1520116373408317570>',
         matches: () =>
           (cleanPrefix && content.startsWith(`${cleanPrefix}pray`)) ||
           (cleanPrefix && content.startsWith(`${cleanPrefix}curse`)) ||
@@ -34,7 +34,7 @@ module.exports = {
       {
         settingKey: 'OwO',
         cooldown: 10000,
-        emoji: '<:owo:1527608869377933463>', 
+        emoji: '<:owo:1527608869377933463>',
         matches: () => /^(owo|uwu)(\s|$)/.test(content)
       }
     ];
@@ -53,12 +53,17 @@ module.exports = {
     try {
       const { settingKey, cooldown, emoji } = matchedCommand;
 
-      // 3. User setting validation check
-      const isEnabled = prefsModule.getSetting(userId, settingKey, 'enabled');
+      // 3. User setting validation check with safe fallbacks
+      const settingRaw = prefsModule.getSetting(userId, settingKey, 'enabled');
+      // If the setting is missing (undefined), default it to true
+      const isEnabled = settingRaw === undefined ? true : settingRaw;
       if (!isEnabled) return;
 
-      const usePing = prefsModule.getSetting(userId, settingKey, 'ping');
-      const useReply = prefsModule.getSetting(userId, settingKey, 'reply');
+      const usePingRaw = prefsModule.getSetting(userId, settingKey, 'ping');
+      const usePing = usePingRaw === undefined ? true : usePingRaw;
+
+      const useReplyRaw = prefsModule.getSetting(userId, settingKey, 'reply');
+      const useReply = useReplyRaw === undefined ? false : useReplyRaw;
 
       // 4. Single execution reminder timer
       setTimeout(async () => {

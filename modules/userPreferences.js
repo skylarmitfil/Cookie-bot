@@ -2,37 +2,39 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentTyp
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_DIR = '/app/data';
 const DATA_FILE = path.join(DATA_DIR, 'userSettings.json');
 let userSettings = new Map();
 
-// --- STORAGE INITIALIZATION ---
 try {
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
     if (fs.existsSync(DATA_FILE)) {
         const rawData = fs.readFileSync(DATA_FILE, 'utf8');
         if (rawData.trim()) {
-            userSettings = new Map(Object.entries(JSON.parse(rawData)));
+            const parsed = JSON.parse(rawData);
+            userSettings = new Map(Object.entries(parsed));
+            console.log(`[STORAGE] Successfully loaded ${userSettings.size} user profiles from persistent volume.`);
         }
+    } else {
+        console.log('[STORAGE] No existing settings file found. Ready to track configuration states.');
     }
 } catch (error) {
-    console.error(`[STORAGE ERROR]: ${error.message}`);
+    console.error(`[STORAGE ERROR] Failed during early boot read initialization: ${error.message}`);
 }
 
 function saveSettingsData() {
     try {
-        fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries(userSettings), null, 2), 'utf8');
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        const obj = Object.fromEntries(userSettings);
+        fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
     } catch (error) {
-        console.error(`[STORAGE ERROR]: Failed to save data: ${error.message}`);
+        console.error(`[STORAGE ERROR] Failed to save data file: ${error.message}`);
     }
 }
-
-// Internal mapping safe for custom IDs (no slashes allowed)
-const CATEGORY_MAP = {
-    'hunt': 'Hunt/Battle',
-    'pray': 'Pray/Curse',
-    'owo': 'OwO'
-};
 
 function getOrCreateUserConfig(userId) {
     if (!userSettings.has(userId)) {
@@ -46,100 +48,114 @@ function getOrCreateUserConfig(userId) {
     return userSettings.get(userId);
 }
 
-function buildConfigPayload(userId, shortCategory, avatarURL) {
-    const fullCategory = CATEGORY_MAP[shortCategory];
-    const config = getOrCreateUserConfig(userId)[fullCategory];
+function buildConfigPayload(userId, category, avatarURL) {
+    const config = getOrCreateUserConfig(userId)[category];
     
-    const EMOJIS = {
-        'hunt': '<:hunt_battle:1520116392756772944>',
-        'pray': '<:Praycurse:1520116373408317570>',
-        'owo': '<:owo:1527608869377933463>'
-    };
-
     const embed = new EmbedBuilder()
-        .setTitle(`${fullCategory} Settings`)
         .setDescription(
-            `**Enabled:** ${config.enabled ? 'Yes ✅' : 'No ❌'}\n` +
-            `**Ping:** ${config.ping ? 'ON 🔔' : 'OFF 🔕'}\n` +
-            `**Reply:** ${config.reply ? 'ON 💬' : 'OFF ✉️'}`
+            `${config.enabled ? '✅' : '❌'} **Is this reminder enabled?**\n\n` +
+            `${config.ping ? '✅' : '❌'} **Pings / mentions enabled?**\n` +
+            `${config.reply ? '✅' : '❌'} **Use inline replies?**`
         )
         .setThumbnail(avatarURL)
-        .setColor(config.enabled ? 0x57F287 : 0xED4245);
+        .setColor(config.enabled ? 0x57F287 : 0xED4245)
+        .setFooter({ text: 'Customize your reminders seamlessly' })
+        .setTimestamp();
+
+    const mainButton = new ButtonBuilder()
+        .setCustomId(`r_toggle_${category}_enabled_${userId}`)
+        .setLabel(category.toLowerCase())
+        .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger);
+
+    if (category === 'Pray/Curse') {
+        mainButton.setEmoji('1525576307822301304');
+    } else if (category === 'Hunt/Battle') {
+        mainButton.setEmoji('1520116392756772944');
+    } else if (category === 'OwO') {
+        mainButton.setEmoji('1525577851888205915');
+    }
 
     const row = new ActionRowBuilder().addComponents(
+        mainButton,
         new ButtonBuilder()
-            .setCustomId(`r_toggle_${shortCategory}_enabled_${userId}`)
-            .setLabel(config.enabled ? `Enabled ${EMOJIS[shortCategory]}` : `Disabled ${EMOJIS[shortCategory]}`)
-            .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
-        new ButtonBuilder()
-            .setCustomId(`r_toggle_${shortCategory}_ping_${userId}`)
-            .setLabel(config.ping ? 'Ping ON 🔔' : 'Ping OFF 🔕')
+            .setCustomId(`r_toggle_${category}_ping_${userId}`)
+            .setLabel(config.ping ? 'ping' : 'silent')
             .setStyle(config.ping ? ButtonStyle.Success : ButtonStyle.Secondary),
         new ButtonBuilder()
-            .setCustomId(`r_toggle_${shortCategory}_reply_${userId}`)
-            .setLabel(config.reply ? 'Reply ON 💬' : 'Reply OFF ✉️')
+            .setCustomId(`r_toggle_${category}_reply_${userId}`)
+            .setLabel(config.reply ? 'reply' : 'send')
             .setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
     );
+
     return { embeds: [embed], components: [row] };
 }
 
 module.exports = {
-    name: 'c',
+    name: 'userPreferences',
     
     getSetting(userId, category, settingKey) {
         const userConfig = getOrCreateUserConfig(userId);
         return userConfig[category][settingKey];
     },
 
-    async execute(message, args) {
-        const subCommand = args[0]?.toLowerCase();
-        let shortCategory = '';
-        
-        if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) shortCategory = 'hunt';
-        else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) shortCategory = 'pray';
-        else if (['owo', 'uwu', 'o'].includes(subCommand)) shortCategory = 'owo';
+    async execute(message, prefix) {
+        const content = message.content.toLowerCase().trim();
+        if (!content.startsWith(`${prefix}r `)) return;
 
-        if (!shortCategory) return message.reply('Usage: `.c <hunt|pray|owo>`');
+        const args = content.split(' ');
+        if (args.length < 2) return;
+        
+        const subCommand = args[1];
+        let targetCategory = '';
+
+        if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
+        else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
+        else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
+
+        if (!targetCategory) return;
 
         const userId = message.author.id;
-        const avatarURL = message.author.displayAvatarURL();
-        const payload = buildConfigPayload(userId, shortCategory, avatarURL);
+        const avatarURL = message.author.displayAvatarURL({ forceStatic: false, size: 256 });
+        
+        const payload = buildConfigPayload(userId, targetCategory, avatarURL);
+        payload.embeds[0].setTitle(`${message.author.username}'s ${targetCategory.toLowerCase()} reminder settings`);
         
         const menuMessage = await message.reply(payload);
 
         const collector = menuMessage.createMessageComponentCollector({ 
             componentType: ComponentType.Button, 
-            idle: 30000 
-        });
-        
-        collector.on('collect', async (interaction) => {
-            if (interaction.user.id !== userId) {
-                return interaction.reply({ content: '❌ Not your menu!', ephemeral: true });
-            }
-            
-            const parts = interaction.customId.split('_');
-            const clickedShortCategory = parts[2]; // 'hunt', 'pray', or 'owo'
-            const settingKey = parts[3];           // 'enabled', 'ping', or 'reply'
-            
-            const fullCategory = CATEGORY_MAP[clickedShortCategory];
-            const config = getOrCreateUserConfig(userId);
-            
-            // Toggle the setting safely
-            config[fullCategory][settingKey] = !config[fullCategory][settingKey];
-            saveSettingsData();
-            
-            await interaction.update(buildConfigPayload(userId, clickedShortCategory, avatarURL));
+            idle: 25000 
         });
 
-        // Clean up components on idle timeout to completely avoid memory leaks
-        collector.on('end', async () => {
-            try {
-                const disabledRow = ActionRowBuilder.from(payload.components[0]);
-                disabledRow.components.forEach(btn => btn.setDisabled(true));
-                await menuMessage.edit({ components: [disabledRow] });
-            } catch (err) {
-                // Fails silently if message was deleted by user
+        collector.on('collect', async (interaction) => {
+            const parts = interaction.customId.split('_');
+            const category = parts[2];
+            const settingKey = parts[3];
+            const targetUserId = parts[4];
+
+            if (interaction.user.id !== targetUserId) {
+                return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
             }
+
+            const config = getOrCreateUserConfig(targetUserId);
+            config[category][settingKey] = !config[category][settingKey];
+            saveSettingsData();
+
+            const updatedPayload = buildConfigPayload(targetUserId, category, avatarURL);
+            updatedPayload.embeds[0].setTitle(`${message.author.username}'s ${category.toLowerCase()} reminder settings`);
+            
+            await interaction.update(updatedPayload);
         });
+
+        collector.on('end', () => {
+            menuMessage.delete().catch(() => {});
+            message.delete().catch(() => {});
+        });
+    },
+
+    shutdown() {
+        saveSettingsData();
+        userSettings.clear();
     }
 };
+

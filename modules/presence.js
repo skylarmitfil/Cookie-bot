@@ -12,7 +12,7 @@ module.exports = {
                         type: ActivityType.Watching, // Changed to Watching
                         // URL only works for Streaming; for others, it's not needed
                     }],
-                    status: 'online'
+                    status: 'streaming' 
                 });
                 console.log('[PRESENCE] Status set successfully!');
             } catch (error) {

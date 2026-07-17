@@ -14,7 +14,7 @@ const client = new Client({
 client.modules = new Map();
 const modulesPath = path.resolve(__dirname, 'modules');
 
-// Load Modules
+// Load modules
 if (fs.existsSync(modulesPath)) {
     fs.readdirSync(modulesPath).filter(file => file.endsWith('.js')).forEach(file => {
         try {
@@ -34,9 +34,9 @@ client.once(Events.ClientReady, () => {
     console.log(`[ONLINE] Logged in as ${client.user.tag}`);
 });
 
-// Message Handler
+// Updated Message Handler for "." prefix
 client.on(Events.MessageCreate, async (message) => {
-    if (message.author.bot || !message.content.startsWith('!')) return;
+    if (message.author.bot || !message.content.startsWith('.')) return;
 
     const args = message.content.slice(1).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();

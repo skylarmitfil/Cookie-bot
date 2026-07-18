@@ -104,7 +104,7 @@ function buildConfigPayload(userId, category, avatarURL) {
 }
 
 module.exports = {
-    name: 'c', // PERFECT: matches client.modules.set(mod.name.toLowerCase()) in index.js loader loop
+    name: 'c',
     
     getSetting(userId, category, settingKey) {
         const userConfig = getOrCreateUserConfig(userId);
@@ -112,14 +112,11 @@ module.exports = {
     },
 
     async execute(message, args) {
-        // index.js passes only the trailing words array here. 
-        // Example: ".c hunt" -> args is ["hunt"].
         if (!args || args.length < 1) return;
         
         const subCommand = args[0].toLowerCase();
         let targetCategory = '';
 
-        // Strict pairs mapping matrix as requested
         if (['hunt', 'battle'].includes(subCommand)) {
             targetCategory = 'Hunt/Battle';
         } else if (['pray', 'curse'].includes(subCommand)) {
@@ -159,15 +156,23 @@ module.exports = {
             config[dbCategory][settingKey] = !config[dbCategory][settingKey];
             saveSettingsData();
 
-            const updatedPayload = buildConfigPayload(targetUserId, dbCategory, avatarURL);
+            // CRITICAL: Uses interaction metadata to accurately keep user profile contexts intact during updates
+            const currentAvatarURL = interaction.user.displayAvatarURL({ forceStatic: false, size: 256 });
+            const updatedPayload = buildConfigPayload(targetUserId, dbCategory, currentAvatarURL);
             updatedPayload.embeds[0].setTitle(`${interaction.user.username}'s ${dbCategory.toLowerCase()} reminder settings`);
             
             await interaction.update(updatedPayload);
         });
 
         collector.on('end', () => {
-            menuMessage.delete().catch(() => {});
-            message.delete().catch(() => {});
+            // Disabled menu panels components smoothly instead of deleting messages completely from feeds
+            const disabledComponents = menuMessage.components.map(row => {
+                const updatedRow = ActionRowBuilder.from(row);
+                updatedRow.components.forEach(btn => btn.setDisabled(true));
+                return updatedRow;
+            });
+
+            menuMessage.edit({ components: disabledComponents }).catch(() => {});
         });
     },
 

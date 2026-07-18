@@ -114,23 +114,25 @@ module.exports = {
     async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
         
-        // Ensure the message begins with the core prefix (e.g., ".")
-        if (!content.startsWith(prefix.toLowerCase())) return;
-        const commandBody = content.slice(prefix.length).trim();
-        
-        // Split with regex to completely remove duplicate whitespace variations
-        const args = commandBody.split(/\s+/);
-        if (args.length < 2) return; // Ignore if it doesn't contain 'c' AND a subcommand
-        
-        // Validate the primary command string is exactly "c"
-        const mainCommand = args[0];
-        if (mainCommand !== 'c') return;
-        
-        // Check the secondary argument choice
-        const subCommand = args[1];
+        // Split text by spaces using a Regex to strip any accidental double spaces
+        const args = content.split(/\s+/);
+        if (args.length < 1) return;
+
+        let subCommand = '';
+
+        // Safe Fallback Parsing: Matches whether your main framework passes ".c hunt" OR just "c hunt"
+        if (args[0] === '.c' || (args[0] === 'c' && args.length > 1)) {
+            subCommand = args[0] === '.c' ? args[1] : args[2];
+        } else {
+            // If the framework passes only the subcommand argument directly
+            subCommand = args[0];
+        }
+
+        if (!subCommand) return;
+
         let targetCategory = '';
 
-        // Exact pairs mapping strategy requested
+        // Route the paired commands directly to their correct categories
         if (['hunt', 'battle'].includes(subCommand)) {
             targetCategory = 'Hunt/Battle';
         } else if (['pray', 'curse'].includes(subCommand)) {
@@ -139,6 +141,7 @@ module.exports = {
             targetCategory = 'OwO';
         }
 
+        // If the message wasn't intended for this command module, exit silently
         if (!targetCategory) return;
 
         const userId = message.author.id;

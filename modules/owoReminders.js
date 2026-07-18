@@ -1,3 +1,6 @@
+// Global map tracker to catch and clear duplicate active user timers
+const activeTimers = new Map();
+
 module.exports = {
   name: 'oworeminders',
   execute: async (message, prefix) => {
@@ -11,7 +14,7 @@ module.exports = {
     const userId = message.author.id;
     const cleanPrefix = (prefix || '').toLowerCase();
     
-    // 1. Configurations array with customized, distinct notification messages
+    // 1. Configurations array with your exact requested short notification styles
     const commandConfig = [
       {
         settingKey: 'Hunt/Battle',
@@ -75,33 +78,55 @@ module.exports = {
 
       if (!isEnabled) return;
 
+      // --- CRITICAL OVERPING FIX MECHANISM ---
+      // Build a unique tracking identifier string for this user and cooldown combination
+      const timerKey = `${userId}-${settingKey}`;
+
+      // Check if a timer already exists for this action. If it does, clear it immediately.
+      if (activeTimers.has(timerKey)) {
+        clearTimeout(activeTimers.get(timerKey));
+        activeTimers.delete(timerKey);
+      }
+
       // 3. Cooldown Execution Timer
-      setTimeout(async () => {
+      const newTimer = setTimeout(async () => {
         try {
+          // Clean up the tracking key from cache memory once the timer completes execution
+          activeTimers.delete(timerKey);
+
           const username = message.author?.username || 'User';
           const userMention = usePing ? `<@${userId}>` : `**${username}**`;
           
-          // Generate the specific custom string text for this category module trigger
+          // Generate your short custom message string
           const alertMsg = alertTemplate(userMention, emoji);
+
+          // Payload includes flag: 4096 (MessageFlags.Silent) to slide in silently
+          const messageOptions = { 
+            content: alertMsg,
+            flags: 4096 
+          };
 
           let sentMessage;
           if (useReply) {
-            sentMessage = await message.reply({ content: alertMsg }).catch(() => {});
+            sentMessage = await message.reply(messageOptions).catch(() => {});
           } else {
-            sentMessage = await message.channel.send({ content: alertMsg }).catch(() => {});
+            sentMessage = await message.channel.send(messageOptions).catch(() => {});
           }
 
-          // 4. Auto-Delete Feature
+          // 4. Auto-Delete Feature (5 seconds)
           if (sentMessage && typeof sentMessage.delete === 'function') {
             setTimeout(async () => {
               await sentMessage.delete().catch(() => {});
-            }, 5000); // 5 seconds
+            }, 5000); 
           }
 
         } catch (timeoutErr) {
           console.error('[OWOREMINDERS TIMEOUT RUNTIME ERROR]:', timeoutErr);
         }
       }, cooldown);
+
+      // Save the freshly created timer reference ID to our active tracks tracking array
+      activeTimers.set(timerKey, newTimer);
 
     } catch (err) {
       console.error(`[OWOREMINDERS SYSTEM FAILURE]:`, err);

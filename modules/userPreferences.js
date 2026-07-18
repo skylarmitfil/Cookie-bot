@@ -6,6 +6,18 @@ const DATA_DIR = '/app/data';
 const DATA_FILE = path.join(DATA_DIR, 'userSettings.json');
 let userSettings = new Map();
 
+// Map short IDs to standard database keys to avoid slash parsing breaks in custom IDs
+const CATEGORY_MAP = {
+    'hunt': 'Hunt/Battle',
+    'pray': 'Pray/Curse',
+    'owo': 'OwO'
+};
+const REVERSE_MAP = {
+    'Hunt/Battle': 'hunt',
+    'Pray/Curse': 'pray',
+    'OwO': 'owo'
+};
+
 try {
     if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -50,6 +62,7 @@ function getOrCreateUserConfig(userId) {
 
 function buildConfigPayload(userId, category, avatarURL) {
     const config = getOrCreateUserConfig(userId)[category];
+    const shortCat = REVERSE_MAP[category];
     
     const embed = new EmbedBuilder()
         .setDescription(
@@ -63,7 +76,7 @@ function buildConfigPayload(userId, category, avatarURL) {
         .setTimestamp();
 
     const mainButton = new ButtonBuilder()
-        .setCustomId(`r_toggle_${category}_enabled_${userId}`)
+        .setCustomId(`r_toggle_${shortCat}_enabled_${userId}`)
         .setLabel(category.toLowerCase())
         .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger);
 
@@ -78,11 +91,11 @@ function buildConfigPayload(userId, category, avatarURL) {
     const row = new ActionRowBuilder().addComponents(
         mainButton,
         new ButtonBuilder()
-            .setCustomId(`r_toggle_${category}_ping_${userId}`)
+            .setCustomId(`r_toggle_${shortCat}_ping_${userId}`)
             .setLabel(config.ping ? 'ping' : 'silent')
             .setStyle(config.ping ? ButtonStyle.Success : ButtonStyle.Secondary),
         new ButtonBuilder()
-            .setCustomId(`r_toggle_${category}_reply_${userId}`)
+            .setCustomId(`r_toggle_${shortCat}_reply_${userId}`)
             .setLabel(config.reply ? 'reply' : 'send')
             .setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
     );
@@ -100,17 +113,26 @@ module.exports = {
 
     async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
-        if (!content.startsWith(`${prefix}r `)) return;
-
-        const args = content.split(' ');
-        if (args.length < 2) return;
         
-        const subCommand = args[1];
+        // Strip your target command configuration structure prefix
+        if (!content.startsWith(prefix)) return;
+        const commandBody = content.slice(prefix.length).trim();
+        
+        // Split with regex to completely remove duplicate whitespace variations
+        const args = commandBody.split(/\s+/);
+        if (args.length < 1) return;
+        
+        const subCommand = args[0];
         let targetCategory = '';
 
-        if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) targetCategory = 'Hunt/Battle';
-        else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) targetCategory = 'Pray/Curse';
-        else if (['owo', 'uwu', 'o'].includes(subCommand)) targetCategory = 'OwO';
+        // Aliases mapping logic for your three commands
+        if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) {
+            targetCategory = 'Hunt/Battle';
+        } else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) {
+            targetCategory = 'Pray/Curse';
+        } else if (['owo', 'uwu', 'o'].includes(subCommand)) {
+            targetCategory = 'OwO';
+        }
 
         if (!targetCategory) return;
 
@@ -129,7 +151,7 @@ module.exports = {
 
         collector.on('collect', async (interaction) => {
             const parts = interaction.customId.split('_');
-            const category = parts[2];
+            const shortCat = parts[2];
             const settingKey = parts[3];
             const targetUserId = parts[4];
 
@@ -137,12 +159,14 @@ module.exports = {
                 return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
             }
 
+            const dbCategory = CATEGORY_MAP[shortCat];
             const config = getOrCreateUserConfig(targetUserId);
-            config[category][settingKey] = !config[category][settingKey];
+            
+            config[dbCategory][settingKey] = !config[dbCategory][settingKey];
             saveSettingsData();
 
-            const updatedPayload = buildConfigPayload(targetUserId, category, avatarURL);
-            updatedPayload.embeds[0].setTitle(`${message.author.username}'s ${category.toLowerCase()} reminder settings`);
+            const updatedPayload = buildConfigPayload(targetUserId, dbCategory, avatarURL);
+            updatedPayload.embeds[0].setTitle(`${interaction.user.username}'s ${dbCategory.toLowerCase()} reminder settings`);
             
             await interaction.update(updatedPayload);
         });
@@ -158,4 +182,3 @@ module.exports = {
         userSettings.clear();
     }
 };
-

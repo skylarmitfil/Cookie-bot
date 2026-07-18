@@ -114,19 +114,24 @@ module.exports = {
     async execute(message, prefix) {
         const content = message.content.toLowerCase().trim();
         
-        // Strip your target command configuration structure prefix
-        if (!content.startsWith(prefix)) return;
+        // Ensure the message begins with the core prefix (e.g., ".")
+        if (!content.startsWith(prefix.toLowerCase())) return;
         const commandBody = content.slice(prefix.length).trim();
         
         // Split with regex to completely remove duplicate whitespace variations
         const args = commandBody.split(/\s+/);
-        if (args.length < 1) return;
+        if (args.length < 2) return; // Ignore if it doesn't contain 'c' AND a subcommand
         
-        const subCommand = args[0];
+        // Validate the primary command string is exactly "c"
+        const mainCommand = args[0];
+        if (mainCommand !== 'c') return;
+        
+        // Check the secondary argument choice
+        const subCommand = args[1];
         let targetCategory = '';
 
-        // Aliases mapping logic for your three commands
-        if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) {
+        // Exact pairs mapping strategy requested
+        if (['hunt', 'battle'].includes(subCommand)) {
             targetCategory = 'Hunt/Battle';
         } else if (['pray', 'curse'].includes(subCommand)) {
             targetCategory = 'Pray/Curse';

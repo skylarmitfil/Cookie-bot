@@ -128,9 +128,9 @@ module.exports = {
         // Aliases mapping logic for your three commands
         if (['hunt', 'battle', 'h', 'b'].includes(subCommand)) {
             targetCategory = 'Hunt/Battle';
-        } else if (['pray', 'curse', 'p', 'c'].includes(subCommand)) {
+        } else if (['pray', 'curse'].includes(subCommand)) {
             targetCategory = 'Pray/Curse';
-        } else if (['owo', 'uwu', 'o'].includes(subCommand)) {
+        } else if (['owo', 'uwu'].includes(subCommand)) {
             targetCategory = 'OwO';
         }
 

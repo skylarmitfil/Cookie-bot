@@ -4,7 +4,6 @@ module.exports = {
     // SAFETY GUARD: Ignore empty messages, system messages, and standard bots
     if (!message || !message.content || message.author?.bot) return;
 
-    // --- ADD THIS CRITICAL FIX LINE HERE ---
     // Official OwO Bot ID is '408785106942115840'. If the message comes from OwO, STOP immediately.
     if (message.author.id === '408785106942115840') return;
 
@@ -12,12 +11,13 @@ module.exports = {
     const userId = message.author.id;
     const cleanPrefix = (prefix || '').toLowerCase();
     
-    // Configurations array
+    // 1. Configurations array with customized, distinct notification messages
     const commandConfig = [
       {
         settingKey: 'Hunt/Battle',
         cooldown: 16000,
         emoji: '<:hunt_battle:1520116392756772944>',
+        alertTemplate: (mention, emoji) => `**Hunt/Battle** ${emoji}`,
         matches: () =>
           (cleanPrefix && content.startsWith(`${cleanPrefix}hunt`)) ||
           (cleanPrefix && content.startsWith(`${cleanPrefix}battle`)) ||
@@ -27,6 +27,7 @@ module.exports = {
         settingKey: 'Pray/Curse',
         cooldown: 300000,
         emoji: '<:Praycurse:1520116373408317570>',
+        alertTemplate: (mention, emoji) => `**Pray/Curse** ${emoji}`,
         matches: () =>
           (cleanPrefix && content.startsWith(`${cleanPrefix}pray`)) ||
           (cleanPrefix && content.startsWith(`${cleanPrefix}curse`)) ||
@@ -36,11 +37,12 @@ module.exports = {
         settingKey: 'OwO',
         cooldown: 10000,
         emoji: '<:owo:1527608869377933463>',
+        alertTemplate: (mention, emoji) => `**OwO/UwU** ${emoji}`,
         matches: () => /^(owo|uwu)(\s|$)/.test(content)
       }
     ];
 
-    // Find which action triggered the reminder
+    // 2. Find which action triggered the reminder
     const matchedCommand = commandConfig.find(cmd => {
       try {
         return cmd.matches();
@@ -52,7 +54,7 @@ module.exports = {
     if (!matchedCommand) return;
 
     try {
-      const { settingKey, cooldown, emoji } = matchedCommand;
+      const { settingKey, cooldown, emoji, alertTemplate } = matchedCommand;
 
       // User setting validation check + Safe Fallback to true if profile doesn't exist
       const prefsModule = message.client?.modules?.get('userPreferences');
@@ -73,18 +75,29 @@ module.exports = {
 
       if (!isEnabled) return;
 
-      // Cooldown Execution Timer
+      // 3. Cooldown Execution Timer
       setTimeout(async () => {
         try {
           const username = message.author?.username || 'User';
           const userMention = usePing ? `<@${userId}>` : `**${username}**`;
-          const alertMsg = `${userMention}, your **${settingKey}** cooldown is over! ${emoji}`;
+          
+          // Generate the specific custom string text for this category module trigger
+          const alertMsg = alertTemplate(userMention, emoji);
 
+          let sentMessage;
           if (useReply) {
-            await message.reply({ content: alertMsg }).catch(() => {});
+            sentMessage = await message.reply({ content: alertMsg }).catch(() => {});
           } else {
-            await message.channel.send({ content: alertMsg }).catch(() => {});
+            sentMessage = await message.channel.send({ content: alertMsg }).catch(() => {});
           }
+
+          // 4. Auto-Delete Feature
+          if (sentMessage && typeof sentMessage.delete === 'function') {
+            setTimeout(async () => {
+              await sentMessage.delete().catch(() => {});
+            }, 5000); // 5 seconds
+          }
+
         } catch (timeoutErr) {
           console.error('[OWOREMINDERS TIMEOUT RUNTIME ERROR]:', timeoutErr);
         }

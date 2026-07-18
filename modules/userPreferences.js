@@ -6,7 +6,6 @@ const DATA_DIR = '/app/data';
 const DATA_FILE = path.join(DATA_DIR, 'userSettings.json');
 let userSettings = new Map();
 
-// Map short IDs to standard database keys to avoid slash parsing breaks in custom IDs
 const CATEGORY_MAP = {
     'hunt': 'Hunt/Battle',
     'pray': 'Pray/Curse',
@@ -27,24 +26,19 @@ try {
         if (rawData.trim()) {
             const parsed = JSON.parse(rawData);
             userSettings = new Map(Object.entries(parsed));
-            console.log(`[STORAGE] Successfully loaded ${userSettings.size} user profiles from persistent volume.`);
+            console.log(`[STORAGE] Successfully loaded ${userSettings.size} user profiles.`);
         }
-    } else {
-        console.log('[STORAGE] No existing settings file found. Ready to track configuration states.');
     }
 } catch (error) {
-    console.error(`[STORAGE ERROR] Failed during early boot read initialization: ${error.message}`);
+    console.error(`[STORAGE ERROR] Init error: ${error.message}`);
 }
 
 function saveSettingsData() {
     try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
         const obj = Object.fromEntries(userSettings);
         fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
     } catch (error) {
-        console.error(`[STORAGE ERROR] Failed to save data file: ${error.message}`);
+        console.error(`[STORAGE ERROR] Save error: ${error.message}`);
     }
 }
 
@@ -72,24 +66,13 @@ function buildConfigPayload(userId, category, avatarURL) {
         )
         .setThumbnail(avatarURL)
         .setColor(config.enabled ? 0x57F287 : 0xED4245)
-        .setFooter({ text: 'Customize your reminders seamlessly' })
         .setTimestamp();
 
-    const mainButton = new ButtonBuilder()
-        .setCustomId(`r_toggle_${shortCat}_enabled_${userId}`)
-        .setLabel(category.toLowerCase())
-        .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger);
-
-    if (category === 'Pray/Curse') {
-        mainButton.setEmoji('1520116373408317570');
-    } else if (category === 'Hunt/Battle') {
-        mainButton.setEmoji('1520116392756772944');
-    } else if (category === 'OwO') {
-        mainButton.setEmoji('1527608869377933463');
-    }
-
     const row = new ActionRowBuilder().addComponents(
-        mainButton,
+        new ButtonBuilder()
+            .setCustomId(`r_toggle_${shortCat}_enabled_${userId}`)
+            .setLabel(category.toLowerCase())
+            .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger),
         new ButtonBuilder()
             .setCustomId(`r_toggle_${shortCat}_ping_${userId}`)
             .setLabel(config.ping ? 'ping' : 'silent')
@@ -117,13 +100,9 @@ module.exports = {
         const subCommand = args[0].toLowerCase();
         let targetCategory = '';
 
-        if (['hunt', 'battle'].includes(subCommand)) {
-            targetCategory = 'Hunt/Battle';
-        } else if (['pray', 'curse'].includes(subCommand)) {
-            targetCategory = 'Pray/Curse';
-        } else if (['owo', 'uwu'].includes(subCommand)) {
-            targetCategory = 'OwO';
-        }
+        if (['hunt', 'battle'].includes(subCommand)) targetCategory = 'Hunt/Battle';
+        else if (['pray', 'curse'].includes(subCommand)) targetCategory = 'Pray/Curse';
+        else if (['owo', 'uwu'].includes(subCommand)) targetCategory = 'OwO';
 
         if (!targetCategory) return;
 
@@ -131,7 +110,7 @@ module.exports = {
         const avatarURL = message.author.displayAvatarURL({ forceStatic: false, size: 256 });
         
         const payload = buildConfigPayload(userId, targetCategory, avatarURL);
-        payload.embeds[0].setTitle(`${message.author.username}'s ${targetCategory.toLowerCase()} reminder settings`);
+        payload.embeds[0].setTitle(`${message.author.username}'s ${targetCategory.toLowerCase()} settings`);
         
         const menuMessage = await message.reply(payload);
 
@@ -147,7 +126,7 @@ module.exports = {
             const targetUserId = parts[4];
 
             if (interaction.user.id !== targetUserId) {
-                return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
+                return interaction.reply({ content: '❌ Not your menu!', ephemeral: true });
             }
 
             const dbCategory = CATEGORY_MAP[shortCat];
@@ -156,28 +135,17 @@ module.exports = {
             config[dbCategory][settingKey] = !config[dbCategory][settingKey];
             saveSettingsData();
 
-            // CRITICAL: Uses interaction metadata to accurately keep user profile contexts intact during updates
             const currentAvatarURL = interaction.user.displayAvatarURL({ forceStatic: false, size: 256 });
             const updatedPayload = buildConfigPayload(targetUserId, dbCategory, currentAvatarURL);
-            updatedPayload.embeds[0].setTitle(`${interaction.user.username}'s ${dbCategory.toLowerCase()} reminder settings`);
+            updatedPayload.embeds[0].setTitle(`${interaction.user.username}'s ${dbCategory.toLowerCase()} settings`);
             
             await interaction.update(updatedPayload);
         });
 
         collector.on('end', () => {
-            // Disabled menu panels components smoothly instead of deleting messages completely from feeds
-            const disabledComponents = menuMessage.components.map(row => {
-                const updatedRow = ActionRowBuilder.from(row);
-                updatedRow.components.forEach(btn => btn.setDisabled(true));
-                return updatedRow;
-            });
-
-            menuMessage.edit({ components: disabledComponents }).catch(() => {});
+            // Restored absolute deletion on menu expiration timeout loops
+            menuMessage.delete().catch(() => {});
+            message.delete().catch(() => {});
         });
-    },
-
-    shutdown() {
-        saveSettingsData();
-        userSettings.clear();
     }
 };

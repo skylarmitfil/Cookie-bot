@@ -20,7 +20,7 @@ module.exports = {
         settingKey: 'Hunt/Battle',
         cooldown: 16000,
         emoji: '<:hunt_battle:1520116392756772944>',
-        alertTemplate: (mention, emoji) => `**Hunt/Battle** ${emoji}`,
+        alertTemplate: (userDisplay, emoji) => `${userDisplay} **Hunt/Battle** ${emoji}`,
         matches: () =>
           (cleanPrefix && content.startsWith(`${cleanPrefix}hunt`)) ||
           (cleanPrefix && content.startsWith(`${cleanPrefix}battle`)) ||
@@ -30,7 +30,7 @@ module.exports = {
         settingKey: 'Pray/Curse',
         cooldown: 300000,
         emoji: '<:Praycurse:1520116373408317570>',
-        alertTemplate: (mention, emoji) => `**Pray/Curse** ${emoji}`,
+        alertTemplate: (userDisplay, emoji) => `${userDisplay} **Pray/Curse** ${emoji}`,
         matches: () =>
           (cleanPrefix && content.startsWith(`${cleanPrefix}pray`)) ||
           (cleanPrefix && content.startsWith(`${cleanPrefix}curse`)) ||
@@ -40,7 +40,7 @@ module.exports = {
         settingKey: 'OwO',
         cooldown: 10000,
         emoji: '<:owo:1527608869377933463>',
-        alertTemplate: (mention, emoji) => `**OwO/UwU** ${emoji}`,
+        alertTemplate: (userDisplay, emoji) => `${userDisplay} **OwO/UwU** ${emoji}`,
         matches: () => /^(owo|uwu)(\s|$)/.test(content)
       }
     ];
@@ -59,8 +59,8 @@ module.exports = {
     try {
       const { settingKey, cooldown, emoji, alertTemplate } = matchedCommand;
 
-      // User setting validation check + Safe Fallback to true if profile doesn't exist
-      const prefsModule = message.client?.modules?.get('userPreferences');
+      // CRITICAL FIX: Changed from 'userPreferences' to 'c' to perfectly match the module key name loaded by index.js
+      const prefsModule = message.client?.modules?.get('c');
       let isEnabled = true;
       let usePing = true;
       let useReply = false;
@@ -76,10 +76,10 @@ module.exports = {
         if (useReplyRaw !== undefined) useReply = useReplyRaw;
       }
 
+      // Exit early if the user turned off this specific category toggle
       if (!isEnabled) return;
 
       // --- CRITICAL OVERPING FIX MECHANISM ---
-      // Build a unique tracking identifier string for this user and cooldown combination
       const timerKey = `${userId}-${settingKey}`;
 
       // Check if a timer already exists for this action. If it does, clear it immediately.
@@ -95,10 +95,10 @@ module.exports = {
           activeTimers.delete(timerKey);
 
           const username = message.author?.username || 'User';
-          const userMention = usePing ? `<@${userId}>` : `**${username}**`;
+          const userDisplay = usePing ? `<@${userId}>` : `**${username}**`;
           
-          // Generate your short custom message string
-          const alertMsg = alertTemplate(userMention, emoji);
+          // Generate your short custom message string using the template parameter
+          const alertMsg = alertTemplate(userDisplay, emoji);
 
           // Payload includes flag: 4096 (MessageFlags.Silent) to slide in silently
           const messageOptions = { 
@@ -133,4 +133,3 @@ module.exports = {
     }
   }
 };
-

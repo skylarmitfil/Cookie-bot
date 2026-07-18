@@ -81,11 +81,11 @@ function buildConfigPayload(userId, category, avatarURL) {
         .setStyle(config.enabled ? ButtonStyle.Success : ButtonStyle.Danger);
 
     if (category === 'Pray/Curse') {
-        mainButton.setEmoji('1525576307822301304');
+        mainButton.setEmoji('1520116373408317570');
     } else if (category === 'Hunt/Battle') {
         mainButton.setEmoji('1520116392756772944');
     } else if (category === 'OwO') {
-        mainButton.setEmoji('1525577851888205915');
+        mainButton.setEmoji('1527608869377933463');
     }
 
     const row = new ActionRowBuilder().addComponents(

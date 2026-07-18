@@ -3,17 +3,19 @@ const activeTimers = new Map();
 
 module.exports = {
   name: 'oworeminders',
-  execute: async (message, prefix) => {
+  execute: async (message) => {
     // SAFETY GUARD: Ignore empty messages, system messages, and standard bots
-    if (!message || !message.content || message.author?.bot) return;
+    if (!message || message.author?.bot) return;
 
     // Official OwO Bot ID is '408785106942115840'. If the message comes from OwO, STOP immediately.
     if (message.author.id === '408785106942115840') return;
 
-    const content = message.content.toLowerCase().trim();
+    const content = (message.content || '').toLowerCase().trim();
     const userId = message.author.id;
-    const cleanPrefix = (prefix || '').toLowerCase();
     
+    // Extract interaction metadata if the user typed an official Discord Slash Command
+    const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
+
     // 1. Configurations array with your exact requested short notification styles
     const commandConfig = [
       {
@@ -22,13 +24,14 @@ module.exports = {
         emoji: '<:hunt_battle:1520116392756772944>',
         alertTemplate: (userDisplay, emoji) => `${userDisplay} **Hunt/Battle** ${emoji}`,
         matches: () =>
-          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}hunt`)) ||
-          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}battle`)) ||
-          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}h `)) ||
-          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}b `)) ||
-          content === `${cleanPrefix}h` ||
-          content === `${cleanPrefix}b` ||
-          /^(owo|uwu)\s+(hunt|h|battle|b)\b/.test(content)
+          slashName === 'hunt' ||
+          slashName === 'battle' ||
+          content === 'h' ||
+          content === 'b' ||
+          content.startsWith('h ') ||
+          content.startsWith('b ') ||
+          // Catches shortcuts: owo hunt, uwu battle, owo h, uwu b, owob, owoh, wh, wb, w h, w b
+          /^(owo|uwu|w)\s*(hunt|battle|h|b)\b/.test(content)
       },
       {
         settingKey: 'Pray/Curse',
@@ -36,13 +39,14 @@ module.exports = {
         emoji: '<:Praycurse:1520116373408317570>',
         alertTemplate: (userDisplay, emoji) => `${userDisplay} **Pray/Curse** ${emoji}`,
         matches: () =>
-          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}pray`)) ||
-          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}curse`)) ||
-          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}p `)) ||
-          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}c `)) ||
-          content === `${cleanPrefix}p` ||
-          content === `${cleanPrefix}c` ||
-          /^(owo|uwu)\s+(pray|curse|p|c)\b/.test(content)
+          slashName === 'pray' ||
+          slashName === 'curse' ||
+          content === 'pray' ||
+          content === 'curse' ||
+          content.startsWith('pray ') ||
+          content.startsWith('curse ') ||
+          // Only matches full terms: owo pray, uwu curse, w pray, w curse
+          /^(owo|uwu|w)\s+(pray|curse)\b/.test(content)
       },
       {
         settingKey: 'OwO',

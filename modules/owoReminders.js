@@ -22,8 +22,12 @@ module.exports = {
         emoji: '<:hunt_battle:1520116392756772944>',
         alertTemplate: (userDisplay, emoji) => `${userDisplay} **Hunt/Battle** ${emoji}`,
         matches: () =>
-          (cleanPrefix && content.startsWith(`${cleanPrefix}hunt`)) ||
-          (cleanPrefix && content.startsWith(`${cleanPrefix}battle`)) ||
+          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}hunt`)) ||
+          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}battle`)) ||
+          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}h `)) ||
+          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}b `)) ||
+          content === `${cleanPrefix}h` ||
+          content === `${cleanPrefix}b` ||
           /^(owo|uwu)\s+(hunt|h|battle|b)\b/.test(content)
       },
       {
@@ -32,8 +36,12 @@ module.exports = {
         emoji: '<:Praycurse:1520116373408317570>',
         alertTemplate: (userDisplay, emoji) => `${userDisplay} **Pray/Curse** ${emoji}`,
         matches: () =>
-          (cleanPrefix && content.startsWith(`${cleanPrefix}pray`)) ||
-          (cleanPrefix && content.startsWith(`${cleanPrefix}curse`)) ||
+          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}pray`)) ||
+          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}curse`)) ||
+          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}p `)) ||
+          (cleanPrefix !== '' && content.startsWith(`${cleanPrefix}c `)) ||
+          content === `${cleanPrefix}p` ||
+          content === `${cleanPrefix}c` ||
           /^(owo|uwu)\s+(pray|curse|p|c)\b/.test(content)
       },
       {
@@ -59,7 +67,6 @@ module.exports = {
     try {
       const { settingKey, cooldown, emoji, alertTemplate } = matchedCommand;
 
-      // CRITICAL FIX: Changed from 'userPreferences' to 'c' to perfectly match the module key name loaded by index.js
       const prefsModule = message.client?.modules?.get('c');
       let isEnabled = true;
       let usePing = true;

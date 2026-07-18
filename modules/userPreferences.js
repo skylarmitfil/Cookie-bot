@@ -104,35 +104,22 @@ function buildConfigPayload(userId, category, avatarURL) {
 }
 
 module.exports = {
-    name: 'userPreferences',
+    name: 'c', // PERFECT: matches client.modules.set(mod.name.toLowerCase()) in index.js loader loop
     
     getSetting(userId, category, settingKey) {
         const userConfig = getOrCreateUserConfig(userId);
         return userConfig[category][settingKey];
     },
 
-    async execute(message, prefix) {
-        const content = message.content.toLowerCase().trim();
+    async execute(message, args) {
+        // index.js passes only the trailing words array here. 
+        // Example: ".c hunt" -> args is ["hunt"].
+        if (!args || args.length < 1) return;
         
-        // Split text by spaces using a Regex to strip any accidental double spaces
-        const args = content.split(/\s+/);
-        if (args.length < 1) return;
-
-        let subCommand = '';
-
-        // Safe Fallback Parsing: Matches whether your main framework passes ".c hunt" OR just "c hunt"
-        if (args[0] === '.c' || (args[0] === 'c' && args.length > 1)) {
-            subCommand = args[0] === '.c' ? args[1] : args[2];
-        } else {
-            // If the framework passes only the subcommand argument directly
-            subCommand = args[0];
-        }
-
-        if (!subCommand) return;
-
+        const subCommand = args[0].toLowerCase();
         let targetCategory = '';
 
-        // Route the paired commands directly to their correct categories
+        // Strict pairs mapping matrix as requested
         if (['hunt', 'battle'].includes(subCommand)) {
             targetCategory = 'Hunt/Battle';
         } else if (['pray', 'curse'].includes(subCommand)) {
@@ -141,7 +128,6 @@ module.exports = {
             targetCategory = 'OwO';
         }
 
-        // If the message wasn't intended for this command module, exit silently
         if (!targetCategory) return;
 
         const userId = message.author.id;

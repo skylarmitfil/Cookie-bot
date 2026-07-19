@@ -4,136 +4,83 @@ const activeTimers = new Map();
 module.exports = {
   name: 'oworeminders',
   execute: async (message) => {
-    // SAFETY GUARD: Ignore empty messages, system messages, and standard bots
     if (!message || message.author?.bot) return;
-
-    // Official OwO Bot ID is '408785106942115840'. If the message comes from OwO, STOP immediately.
     if (message.author.id === '408785106942115840') return;
 
     const content = (message.content || '').toLowerCase().trim();
     const userId = message.author.id;
+    
+    // Normalize by removing all spaces: 'owo h' -> 'owoh', 'w h' -> 'wh'
+    const normalized = content.replace(/\s+/g, '');
 
-    // Extract interaction metadata if the user typed an official Discord Slash Command
-    const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
-
-    // 1. Configurations array with strict full-string exact matching
     const commandConfig = [
       {
         settingKey: 'Hunt/Battle',
         cooldown: 16000,
         emoji: '<:hunt_battle:1520116392756772944>',
         alertTemplate: (userDisplay, emoji) => `${userDisplay} **Hunt/Battle** ${emoji}`,
-        matches: () => 
-          slashName === 'hunt' || 
-          slashName === 'battle' || 
-          content === 'h' || 
-          content === 'b' ||
-          content === 'hunt' ||
-          content === 'battle' ||
-          /^(owo|uwu|w)\s+(hunt|battle|h|b)$/.test(content)
+        // Triggers: owoh, wh, owob, wb, plus the standalone 'h', 'b', 'hunt', 'battle'
+        matches: () => ['owoh', 'wh', 'owob', 'wb', 'h', 'b', 'hunt', 'battle'].includes(normalized)
       },
       {
         settingKey: 'Pray/Curse',
         cooldown: 300000,
         emoji: '<:Praycurse:1520116373408317570>',
         alertTemplate: (userDisplay, emoji) => `${userDisplay} **Pray/Curse** ${emoji}`,
-        matches: () => 
-          slashName === 'pray' || 
-          slashName === 'curse' || 
-          content === 'pray' || 
-          content === 'curse' ||
-          /^(owo|uwu|w)\s+(pray|curse)$/.test(content)
+        matches: () => ['owopray', 'wpray', 'owocurse', 'wcurse', 'pray', 'curse'].includes(normalized)
       },
       {
         settingKey: 'OwO',
         cooldown: 10000,
         emoji: '<:owo:1527608869377933463>',
         alertTemplate: (userDisplay, emoji) => `${userDisplay} **OwO/UwU** ${emoji}`,
-        // FIXED: Completely removed regular expressions to avoid partial matching.
-        // Will ONLY match if the user types exactly "owo" or "uwu" and nothing else.
-        matches: () => content === 'owo' || content === 'uwu'
+        matches: () => ['owo', 'uwu'].includes(normalized)
       }
     ];
 
-    // 2. Find which action triggered the reminder
-    const matchedCommand = commandConfig.find(cmd => {
-      try {
-        return cmd.matches();
-      } catch {
-        return false;
-      }
-    });
-
+    const matchedCommand = commandConfig.find(cmd => cmd.matches());
     if (!matchedCommand) return;
 
     try {
       const { settingKey, cooldown, emoji, alertTemplate } = matchedCommand;
+      
+      // Fetch user settings
       const prefsModule = message.client?.modules?.get('c');
       let isEnabled = true;
       let usePing = true;
       let useReply = false;
 
-      if (prefsModule && typeof prefsModule.getSetting === 'function') {
-        const settingRaw = prefsModule.getSetting(userId, settingKey, 'enabled');
-        if (settingRaw !== undefined) isEnabled = settingRaw;
-
-        const usePingRaw = prefsModule.getSetting(userId, settingKey, 'ping');
-        if (usePingRaw !== undefined) usePing = usePingRaw;
-
-        const useReplyRaw = prefsModule.getSetting(userId, settingKey, 'reply');
-        if (useReplyRaw !== undefined) useReply = useReplyRaw;
+      if (prefsModule?.getSetting) {
+        isEnabled = prefsModule.getSetting(userId, settingKey, 'enabled') ?? true;
+        usePing = prefsModule.getSetting(userId, settingKey, 'ping') ?? true;
+        useReply = prefsModule.getSetting(userId, settingKey, 'reply') ?? false;
       }
 
-      // Exit early if the user turned off this specific category toggle
       if (!isEnabled) return;
 
-      // --- CRITICAL OVERPING FIX MECHANISM ---
       const timerKey = `${userId}-${settingKey}`;
-
-      // Check if a timer already exists for this action. If it does, clear it immediately.
       if (activeTimers.has(timerKey)) {
         clearTimeout(activeTimers.get(timerKey));
-        activeTimers.delete(timerKey);
       }
 
-      // 3. Cooldown Execution Timer
       const newTimer = setTimeout(async () => {
-        try {
-          // Clean up the tracking key from cache memory once the timer completes execution
-          activeTimers.delete(timerKey);
+        activeTimers.delete(timerKey);
+        const userDisplay = usePing ? `<@${userId}>` : `**${message.author.username}**`;
+        const alertMsg = alertTemplate(userDisplay, emoji);
 
-          const username = message.author?.username || 'User';
-          const userDisplay = usePing ? `<@${userId}>` : `**${username}**`;
+        const sentMessage = useReply 
+          ? await message.reply({ content: alertMsg, flags: 4096 }).catch(() => {})
+          : await message.channel.send({ content: alertMsg, flags: 4096 }).catch(() => {});
 
-          // Generate your short custom message string using the template parameter
-          const alertMsg = alertTemplate(userDisplay, emoji);
-
-          // Payload includes flag: 4096 (MessageFlags.Silent) to slide in silently
-          const messageOptions = { content: alertMsg, flags: 4096 };
-
-          let sentMessage;
-          if (useReply) {
-            sentMessage = await message.reply(messageOptions).catch(() => {});
-          } else {
-            sentMessage = await message.channel.send(messageOptions).catch(() => {});
-          }
-
-          // 4. Auto-Delete Feature (5 seconds)
-          if (sentMessage && typeof sentMessage.delete === 'function') {
-            setTimeout(async () => {
-              await sentMessage.delete().catch(() => {});
-            }, 5000);
-          }
-        } catch (timeoutErr) {
-          console.error('[OWOREMINDERS TIMEOUT RUNTIME ERROR]:', timeoutErr);
+        if (sentMessage?.delete) {
+          setTimeout(() => sentMessage.delete().catch(() => {}), 5000);
         }
       }, cooldown);
 
-      // Save the freshly created timer reference ID to our active tracks tracking array
       activeTimers.set(timerKey, newTimer);
 
     } catch (err) {
-      console.error(`[OWOREMINDERS SYSTEM FAILURE]:`, err);
+      console.error(`[OWOREMINDERS ERROR]:`, err);
     }
   }
 };

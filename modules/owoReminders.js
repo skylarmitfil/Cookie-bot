@@ -22,7 +22,6 @@ module.exports = {
         settingKey: 'Hunt/Battle',
         cooldown: 16000,
         emoji: '<:hunt_battle:1520116392756772944>',
-        // FIXED: The message text now contains exactly the text and emoji without any user details
         alertTemplate: (emoji) => `**Hunt/Battle** ${emoji}`,
         matches: () => 
           slashName === 'hunt' || 
@@ -37,7 +36,6 @@ module.exports = {
         settingKey: 'Pray/Curse',
         cooldown: 300000,
         emoji: '<:Praycurse:1520116373408317570>',
-        // FIXED: Clean text layout
         alertTemplate: (emoji) => `**Pray/Curse** ${emoji}`,
         matches: () => 
           slashName === 'pray' || 
@@ -50,7 +48,6 @@ module.exports = {
         settingKey: 'OwO',
         cooldown: 10000,
         emoji: '<:owo:1527608869377933463>',
-        // FIXED: Clean text layout
         alertTemplate: (emoji) => `**OwO/UwU** ${emoji}`,
         matches: () => content === 'owo' || content === 'uwu'
       }
@@ -70,6 +67,8 @@ module.exports = {
     try {
       const { settingKey, cooldown, emoji, alertTemplate } = matchedCommand;
       const prefsModule = message.client?.modules?.get('c');
+      
+      // Setting core defaults to TRUE to make sure new users get reminders out of the box
       let isEnabled = true;
       let usePing = true;
       let useReply = false;
@@ -85,11 +84,15 @@ module.exports = {
         if (useReplyRaw !== undefined) useReply = useReplyRaw;
       }
 
-      // Exit early if the user turned off this specific category toggle
+      // Exit early if the user explicitly turned off this specific category toggle
       if (!isEnabled) return;
 
-      // If both ping AND reply options are disabled by the user, ignore the tracker entirely.
-      if (!usePing && !useReply) return;
+      // FIXED SAFETY NET: Instead of dropping the reminder and killing the tracker, 
+      // if a user has both settings false, we force a safe fallback text reminder in the channel.
+      let pureSilentTextOnly = false;
+      if (!usePing && !useReply) {
+        pureSilentTextOnly = true; 
+      }
 
       // --- CRITICAL OVERPING FIX MECHANISM ---
       const timerKey = `${userId}-${settingKey}`;
@@ -114,22 +117,25 @@ module.exports = {
             content: alertMsg, 
             flags: 4096,
             allowedMentions: {
-              // Parse user pings only if usePing is true
               parse: usePing ? ['users'] : [],
-              // Native reply line will ping if usePing is allowed, otherwise it stays quiet
               repliedUser: usePing
             }
           };
 
           let sentMessage;
-          if (useReply) {
+          if (useReply && !pureSilentTextOnly) {
             sentMessage = await message.reply(messageOptions).catch(() => {});
           } else {
-            // FIXED: If they have reply turned OFF but ping turned ON, they want a standard message.
-            // Since the text itself has no user tag, we must prepend the text ping to the channel message.
+            // If they want pings but not replies, prepend the ping element
             if (usePing) {
               messageOptions.content = `<@${userId}> ${alertMsg}`;
+            } 
+            // If they opted out of both, prepend their plain text username so they know who it belongs to
+            else if (pureSilentTextOnly) {
+              const username = message.author?.username || 'User';
+              messageOptions.content = `**${username}** | ${alertMsg}`;
             }
+            
             sentMessage = await message.channel.send(messageOptions).catch(() => {});
           }
 

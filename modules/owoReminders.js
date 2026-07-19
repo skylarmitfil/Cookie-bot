@@ -12,48 +12,46 @@ module.exports = {
 
     const content = (message.content || '').toLowerCase().trim();
     const userId = message.author.id;
-    
+
     // Extract interaction metadata if the user typed an official Discord Slash Command
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
-    // 1. Configurations array with your exact requested short notification styles
+    // 1. Configurations array with strict full-string exact matching
     const commandConfig = [
       {
         settingKey: 'Hunt/Battle',
         cooldown: 16000,
         emoji: '<:hunt_battle:1520116392756772944>',
         alertTemplate: (userDisplay, emoji) => `${userDisplay} **Hunt/Battle** ${emoji}`,
-        matches: () =>
-          slashName === 'hunt' ||
-          slashName === 'battle' ||
-          content === 'h' ||
+        matches: () => 
+          slashName === 'hunt' || 
+          slashName === 'battle' || 
+          content === 'h' || 
           content === 'b' ||
-          content.startsWith('h ') ||
-          content.startsWith('b ') ||
-          // Catches shortcuts: owo hunt, uwu battle, owo h, uwu b, owob, owoh, wh, wb, w h, w b
-          /^(owo|uwu|w)\s*(hunt|battle|h|b)\b/.test(content)
+          content === 'hunt' ||
+          content === 'battle' ||
+          /^(owo|uwu|w)\s+(hunt|battle|h|b)$/.test(content)
       },
       {
         settingKey: 'Pray/Curse',
         cooldown: 300000,
         emoji: '<:Praycurse:1520116373408317570>',
         alertTemplate: (userDisplay, emoji) => `${userDisplay} **Pray/Curse** ${emoji}`,
-        matches: () =>
-          slashName === 'pray' ||
-          slashName === 'curse' ||
-          content === 'pray' ||
+        matches: () => 
+          slashName === 'pray' || 
+          slashName === 'curse' || 
+          content === 'pray' || 
           content === 'curse' ||
-          content.startsWith('pray ') ||
-          content.startsWith('curse ') ||
-          // Only matches full terms: owo pray, uwu curse, w pray, w curse
-          /^(owo|uwu|w)\s+(pray|curse)\b/.test(content)
+          /^(owo|uwu|w)\s+(pray|curse)$/.test(content)
       },
       {
         settingKey: 'OwO',
         cooldown: 10000,
         emoji: '<:owo:1527608869377933463>',
         alertTemplate: (userDisplay, emoji) => `${userDisplay} **OwO/UwU** ${emoji}`,
-        matches: () => /^(owo|uwu)(\s|$)/.test(content)
+        // FIXED: Completely removed regular expressions to avoid partial matching.
+        // Will ONLY match if the user types exactly "owo" or "uwu" and nothing else.
+        matches: () => content === 'owo' || content === 'uwu'
       }
     ];
 
@@ -65,12 +63,11 @@ module.exports = {
         return false;
       }
     });
-    
+
     if (!matchedCommand) return;
 
     try {
       const { settingKey, cooldown, emoji, alertTemplate } = matchedCommand;
-
       const prefsModule = message.client?.modules?.get('c');
       let isEnabled = true;
       let usePing = true;
@@ -107,15 +104,12 @@ module.exports = {
 
           const username = message.author?.username || 'User';
           const userDisplay = usePing ? `<@${userId}>` : `**${username}**`;
-          
+
           // Generate your short custom message string using the template parameter
           const alertMsg = alertTemplate(userDisplay, emoji);
 
           // Payload includes flag: 4096 (MessageFlags.Silent) to slide in silently
-          const messageOptions = { 
-            content: alertMsg,
-            flags: 4096 
-          };
+          const messageOptions = { content: alertMsg, flags: 4096 };
 
           let sentMessage;
           if (useReply) {
@@ -128,9 +122,8 @@ module.exports = {
           if (sentMessage && typeof sentMessage.delete === 'function') {
             setTimeout(async () => {
               await sentMessage.delete().catch(() => {});
-            }, 5000); 
+            }, 5000);
           }
-
         } catch (timeoutErr) {
           console.error('[OWOREMINDERS TIMEOUT RUNTIME ERROR]:', timeoutErr);
         }

@@ -29,16 +29,16 @@ if (fs.existsSync(modulesPath)) {
           if (typeof mod.init === 'function') {
             mod.init(client);
           }
-          console.log(`[LOADER] Loaded: ${mod.name}`);
+          console.log(`📦 Loaded: ${mod.name}`);
         }
       } catch (err) {
-        console.error(`[LOADER] Failed to load ${file}:`, err);
+        console.error(`📦⛔️ Failed to load ${file}:`, err);
       }
     });
 }
 
 client.once(Events.ClientReady, () => {
-  console.log(`[ONLINE] Logged in as ${client.user.tag}`);
+  console.log(`<Active> Logged in as ${client.user.tag}`);
 });
 
 // Message Event Handler for Commands AND Passive Listening Background Tasks

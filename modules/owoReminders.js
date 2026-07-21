@@ -111,7 +111,9 @@ module.exports = {
       if (!isEnabled) return;
 
       const isPureSilent = !usePing && !useReply;
-      const timerKey = `${targetUserId}-${settingKey}`;
+      if (isPureSilent) return; // No notification needed
+
+      const timerKey = `targetUserId−{targetUserId}-targetUserId−{settingKey}`;
 
       if (activeTimers.has(timerKey)) {
         clearTimeout(activeTimers.get(timerKey));
@@ -121,47 +123,34 @@ module.exports = {
       // 3. Cooldown Execution Timer
       const newTimer = setTimeout(async () => {
         try {
+          const alertMessage = alertTemplate(emoji);
+
+          // Fetch the user object for mention if needed
+          const user = await message.client.users.fetch(targetUserId);
+          if (!user) return;
+
+          let reminderText = alertMessage;
+
+          if (usePing) {
+            reminderText = `user.toString(){user.toString()}user.toString(){alertMessage}`;
+          }
+
+          if (useReply && message.channel && typeof message.channel.send === 'function') {
+            await message.reply(reminderText);
+          } else if (message.channel && typeof message.channel.send === 'function') {
+            await message.channel.send(reminderText);
+          }
+        } catch (err) {
+          console.error('Error sending OwO reminder:', err);
+        } finally {
           activeTimers.delete(timerKey);
-          const alertMsg = alertTemplate(emoji);
-
-          const messageOptions = { 
-            content: alertMsg, 
-            flags: 4096,
-            allowedMentions: {
-              parse: usePing ? ['users'] : [],
-              repliedUser: usePing
-            }
-          };
-
-          let sentMessage;
-          
-          if (useReply && !isPureSilent) {
-            sentMessage = await message.reply(messageOptions).catch(() => {});
-          } else {
-            if (usePing) {
-              messageOptions.content = `<@${targetUserId}> ${alertMsg}`;
-            } else if (isPureSilent) {
-              const username = message.author?.username || 'User';
-              messageOptions.content = `**${username}** | ${alertMsg}`;
-            }
-            sentMessage = await message.channel.send(messageOptions).catch(() => {});
-          }
-
-          // 4. Auto-Delete Feature (5 seconds)
-          if (sentMessage && typeof sentMessage.delete === 'function') {
-            setTimeout(async () => {
-              await sentMessage.delete().catch(() => {});
-            }, 5000);
-          }
-        } catch (timeoutErr) {
-          console.error('[OWOREMINDERS TIMEOUT RUNTIME ERROR]:', timeoutErr);
         }
       }, cooldown);
 
       activeTimers.set(timerKey, newTimer);
 
-    } catch (err) {
-      console.error(`[OWOREMINDERS SYSTEM FAILURE]:`, err);
+    } catch (error) {
+      console.error('OwO reminder execution error:', error);
     }
   }
 };

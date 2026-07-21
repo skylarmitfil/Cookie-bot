@@ -112,7 +112,8 @@ module.exports = {
       const isPureSilent = !usePing && !useReply;
       if (isPureSilent) return;
 
-      const timerKey = `targetUserId−{targetUserId}-targetUserId−{settingKey}`;
+      // FIXED: Corrected the timerKey template literal formatting
+      const timerKey = `${targetUserId}-${settingKey}`;
 
       if (activeTimers.has(timerKey)) {
         clearTimeout(activeTimers.get(timerKey));
@@ -128,7 +129,8 @@ module.exports = {
           let reminderText = alertMessage;
 
           if (usePing) {
-            reminderText = `user.toString(){user.toString()}user.toString(){alertMessage}`;
+            // FIXED: Replaced the broken literal string with proper template literals
+            reminderText = `${user.toString()}, ${alertMessage}`;
           }
 
           if (useReply && message.channel && typeof message.channel.send === 'function') {

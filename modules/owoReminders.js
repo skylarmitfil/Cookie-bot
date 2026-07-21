@@ -123,10 +123,24 @@ module.exports = {
             reminderText = `${user.toString()}, ${alertMessage}`;
           }
 
+          let sentMessage = null;
+
           if (useReply && message.channel && typeof message.channel.send === 'function') {
-            await message.reply(reminderText);
+            sentMessage = await message.reply(reminderText);
           } else if (message.channel && typeof message.channel.send === 'function') {
-            await message.channel.send(reminderText);
+            sentMessage = await message.channel.send(reminderText);
+          }
+
+          if (sentMessage && typeof sentMessage.delete === 'function') {
+            setTimeout(async () => {
+              try {
+                await sentMessage.delete();
+              } catch (deleteErr) {
+                if (deleteErr.code !== 10008) {
+                  console.error('Failed to auto-delete reminder:', deleteErr);
+                }
+              }
+            }, 5000);
           }
         } catch (err) {
           console.error('Error sending OwO reminder:', err);

@@ -128,6 +128,9 @@ module.exports = {
           if (useReply && message.channel && typeof message.channel.send === 'function') {
             sentMessage = await message.reply(reminderText);
           } else if (message.channel && typeof message.channel.send === 'function') {
+            if (!useReply && usePing) {
+              reminderText = `${user.toString()}`;
+            }
             sentMessage = await message.channel.send(reminderText);
           }
 

@@ -1,4 +1,5 @@
 const activeTimers = new Map();
+const processedMessages = new Map();
 
 module.exports = {
   name: 'oworeminders',
@@ -9,7 +10,8 @@ module.exports = {
     const userId = message.author?.id;
     if (!userId) return;
 
-    const isOwOBot = userId === '408785106942115840';
+    if (message.author.bot) return;
+
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
     const commandConfig = [
@@ -19,9 +21,6 @@ module.exports = {
         emoji: '<:hunt_battle:1520116392756772944>',
         alertTemplate: (emoji) => `**Hunt/Battle** ${emoji}`,
         matches: () => {
-          if (isOwOBot) {
-            return content.includes('hunt') || content.includes('battle') || content.includes('h!') || content.includes('b!');
-          }
           if (
             slashName === 'hunt' ||
             slashName === 'battle' ||
@@ -45,9 +44,6 @@ module.exports = {
         emoji: '<:Praycurse:1520116373408317570>',
         alertTemplate: (emoji) => `**Pray/Curse** ${emoji}`,
         matches: () => {
-          if (isOwOBot) {
-            return content.includes('pray') || content.includes('curse');
-          }
           return (
             slashName === 'pray' ||
             slashName === 'curse' ||
@@ -63,7 +59,6 @@ module.exports = {
         emoji: '<:owo:1527608869377933463>',
         alertTemplate: (emoji) => `**OwO/UwU** ${emoji}`,
         matches: () => {
-          if (isOwOBot) return false;
           return content === 'owo' || content === 'uwu';
         }
       }
@@ -79,14 +74,11 @@ module.exports = {
 
     if (!matchedCommand) return;
 
-    let targetUserId = userId;
-    if (isOwOBot) {
-      if (message.mentions?.users?.first()) {
-        targetUserId = message.mentions.users.first().id;
-      } else {
-        return;
-      }
-    }
+    const messageKey = `${userId}-${message.id}`;
+    if (processedMessages.has(messageKey)) return;
+    processedMessages.set(messageKey, true);
+    
+    setTimeout(() => processedMessages.delete(messageKey), 30000);
 
     try {
       const { settingKey, cooldown, emoji, alertTemplate } = matchedCommand;
@@ -97,13 +89,13 @@ module.exports = {
       let useReply = false;
 
       if (prefsModule && typeof prefsModule.getSetting === 'function') {
-        const settingRaw = prefsModule.getSetting(targetUserId, settingKey, 'enabled');
+        const settingRaw = prefsModule.getSetting(userId, settingKey, 'enabled');
         if (settingRaw !== undefined) isEnabled = settingRaw;
 
-        const usePingRaw = prefsModule.getSetting(targetUserId, settingKey, 'ping');
+        const usePingRaw = prefsModule.getSetting(userId, settingKey, 'ping');
         if (usePingRaw !== undefined) usePing = usePingRaw;
 
-        const useReplyRaw = prefsModule.getSetting(targetUserId, settingKey, 'reply');
+        const useReplyRaw = prefsModule.getSetting(userId, settingKey, 'reply');
         if (useReplyRaw !== undefined) useReply = useReplyRaw;
       }
 
@@ -112,8 +104,7 @@ module.exports = {
       const isPureSilent = !usePing && !useReply;
       if (isPureSilent) return;
 
-      // FIXED: Corrected the timerKey template literal formatting
-      const timerKey = `${targetUserId}-${settingKey}`;
+      const timerKey = `${userId}-${settingKey}`;
 
       if (activeTimers.has(timerKey)) {
         clearTimeout(activeTimers.get(timerKey));
@@ -123,13 +114,12 @@ module.exports = {
       const newTimer = setTimeout(async () => {
         try {
           const alertMessage = alertTemplate(emoji);
-          const user = await message.client.users.fetch(targetUserId);
+          const user = await message.client.users.fetch(userId);
           if (!user) return;
 
           let reminderText = alertMessage;
 
           if (usePing) {
-            // FIXED: Replaced the broken literal string with proper template literals
             reminderText = `${user.toString()}, ${alertMessage}`;
           }
 

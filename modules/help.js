@@ -15,7 +15,7 @@ module.exports = {
                     iconURL: message.client.user.displayAvatarURL() 
                 })
                 .setDescription(
-                    `[Support server]() | [Bot Wiki](https://discord-cookie.com)\n\n` +
+                    `[Bot Website](https://discord-cookie.com)\n\n` +
                     `**Main commands:**\n` +
                     `┃ \`${prefix}c hunt\` \`${prefix}c pray\` \`${prefix}c owo\``
                 );

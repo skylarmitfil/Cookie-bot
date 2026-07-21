@@ -1,10 +1,8 @@
-// Global map tracker to catch and clear duplicate active user timers
 const activeTimers = new Map();
 
 module.exports = {
   name: 'oworeminders',
   execute: async (message) => {
-    // SAFETY GUARD: Ignore empty messages or system messages
     if (!message) return;
 
     const content = (message.content || '').toLowerCase().trim();
@@ -12,11 +10,8 @@ module.exports = {
     if (!userId) return;
 
     const isOwOBot = userId === '408785106942115840';
-    
-    // Extract interaction metadata if the user typed an official Discord Slash Command
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
-    // 1. Configurations array with strict, fully-anchored, exact word combinations
     const commandConfig = [
       {
         settingKey: 'Hunt/Battle',
@@ -27,15 +22,21 @@ module.exports = {
           if (isOwOBot) {
             return content.includes('hunt') || content.includes('battle') || content.includes('h!') || content.includes('b!');
           }
-          return (
-            slashName === 'hunt' || 
-            slashName === 'battle' || 
-            content === 'h' || 
+          if (
+            slashName === 'hunt' ||
+            slashName === 'battle' ||
+            content === 'h' ||
             content === 'b' ||
             content === 'hunt' ||
-            content === 'battle' ||
-            /^(owo|uwu|w)\s+(hunt|battle|h|b)$/.test(content)
-          );
+            content === 'battle'
+          ) {
+            return true;
+          }
+          return /^(owo|uwu|w)\s+(hunt|battle|h|b)$/.test(content) ||
+                 /^w\s*h$/.test(content) ||
+                 /^w\s*b$/.test(content) ||
+                 /^wh$/.test(content) ||
+                 /^wb$/.test(content);
         }
       },
       {
@@ -48,9 +49,9 @@ module.exports = {
             return content.includes('pray') || content.includes('curse');
           }
           return (
-            slashName === 'pray' || 
-            slashName === 'curse' || 
-            content === 'pray' || 
+            slashName === 'pray' ||
+            slashName === 'curse' ||
+            content === 'pray' ||
             content === 'curse' ||
             /^(owo|uwu|w)\s+(pray|curse)$/.test(content)
           );
@@ -68,7 +69,6 @@ module.exports = {
       }
     ];
 
-    // 2. Find which action triggered the reminder
     const matchedCommand = commandConfig.find(cmd => {
       try {
         return cmd.matches();
@@ -79,20 +79,19 @@ module.exports = {
 
     if (!matchedCommand) return;
 
-    // Determine the actual user to ping/remind (handles OwO replies/mentions or direct user triggers)
     let targetUserId = userId;
     if (isOwOBot) {
       if (message.mentions?.users?.first()) {
         targetUserId = message.mentions.users.first().id;
       } else {
-        return; 
+        return;
       }
     }
 
     try {
       const { settingKey, cooldown, emoji, alertTemplate } = matchedCommand;
       const prefsModule = message.client?.modules?.get('c');
-      
+
       let isEnabled = true;
       let usePing = true;
       let useReply = false;
@@ -111,7 +110,7 @@ module.exports = {
       if (!isEnabled) return;
 
       const isPureSilent = !usePing && !useReply;
-      if (isPureSilent) return; // No notification needed
+      if (isPureSilent) return;
 
       const timerKey = `targetUserId−{targetUserId}-targetUserId−{settingKey}`;
 
@@ -120,12 +119,9 @@ module.exports = {
         activeTimers.delete(timerKey);
       }
 
-      // 3. Cooldown Execution Timer
       const newTimer = setTimeout(async () => {
         try {
           const alertMessage = alertTemplate(emoji);
-
-          // Fetch the user object for mention if needed
           const user = await message.client.users.fetch(targetUserId);
           if (!user) return;
 

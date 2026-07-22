@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { EmbedBuilder } = require('discord.js');
 
 const DATA_DIR = '/app/data';
 const GOALS_FILE = path.join(DATA_DIR, 'userGoals.json');
@@ -67,17 +68,25 @@ function checkAndUpdateGoal(userId, category, incrementAmount = 1) {
     return { data, notification };
 }
 
+function createProgressBar(current, target, length = 10) {
+    if (target <= 0) return '▬'.repeat(length);
+    const percentage = Math.min(Math.max(current / target, 0), 1);
+    const progress = Math.round(length * percentage);
+    const empty = length - progress;
+    return '█'.repeat(progress) + '▬'.repeat(empty);
+}
+
 module.exports = {
     name: 'goal',
     checkAndUpdateGoal,
 
     async execute(message, args) {
         try {
-            if (!args || args.length < 1) {
-                return message.reply('❌ **Error:** You must pick one of these categories: `Hunt`, `Battle`, `Pray`, `Curse`, or `OwO`.\nExample: `.goal hunt 5000`');
+            if (!args || args.length < 2 || args[0].toLowerCase() !== 'set') {
+                return message.reply('❌ **Error:** Usage: `.goal set <category> <amount>`\nCategories: `Hunt`, `Battle`, `Pray`, `Curse`, or `OwO`.\nExample: `.goal set hunt 5000`');
             }
 
-            const category = args[0].toLowerCase();
+            const category = args[1].toLowerCase();
 
             if (!VALID_CATEGORIES.includes(category)) {
                 return message.reply('❌ **Error:** Invalid category! You must pick either `Hunt`, `Battle`, `Pray`, `Curse`, or `OwO`.');
@@ -88,15 +97,25 @@ module.exports = {
             
             const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
 
-            if (!args[1]) {
-                return message.reply(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` goal`);
+            if (!args[2]) {
+                const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
+                const progressBar = createProgressBar(data.current, data.target);
+                const embed = new EmbedBuilder()
+                    .setColor(0x00AE86)
+                    .setDescription(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar} goal`);
+                return message.reply({ embeds: [embed] });
             }
 
-            const amount = parseFloat(args[1].replace(/,/g, ''));
+            const amount = parseFloat(args[2].replace(/,/g, ''));
             if (!isNaN(amount) && amount >= 0 && amount <= 1000000) {
                 data.target = amount;
                 saveGoalsData();
-                return message.reply(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\``);
+                const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
+                const progressBar = createProgressBar(data.current, data.target);
+                const embed = new EmbedBuilder()
+                    .setColor(0x00AE86)
+                    .setDescription(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
+                return message.reply({ embeds: [embed] });
             } else {
                 return message.reply(`❌ **Error:** Target goal must be a number between 0 and 1,000,000.`);
             }

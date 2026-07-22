@@ -82,11 +82,7 @@ function buildGoalsPayload(userId, category, username, avatarURL) {
         new ButtonBuilder()
             .setCustomId(`goals_set_${category}_${userId}`)
             .setLabel('Set Target')
-            .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-            .setCustomId(`goals_reset_${category}_${userId}`)
-            .setLabel('Reset')
-            .setStyle(ButtonStyle.Danger)
+            .setStyle(ButtonStyle.Primary)
     );
 
     return { embeds: [embed], components: [selectMenuRow, buttonRow] };
@@ -160,12 +156,6 @@ module.exports = {
                                 });
                             }
                         });
-                    } else if (action === 'reset') {
-                        userGoalData.current = 0;
-                        saveGoalsData();
-
-                        const updatedPayload = buildGoalsPayload(targetUserId, btnCategory, interaction.user.username, interaction.user.displayAvatarURL({ forceStatic: false, size: 256 }));
-                        await interaction.update(updatedPayload);
                     }
                 }
             });

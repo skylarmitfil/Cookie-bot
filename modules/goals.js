@@ -102,6 +102,49 @@ module.exports = {
     CURSE_TRIGGERS,
     OWO_TRIGGERS,
 
+    handleMessage(message) {
+        if (message.author.bot) return;
+
+        const content = message.content.trim().toLowerCase();
+
+        // Check Hunt
+        for (const trigger of HUNT_TRIGGERS) {
+            if (content === trigger || content.startsWith(trigger + ' ')) {
+                return checkAndUpdateGoal(message.author.id, 'hunt', 1);
+            }
+        }
+
+        // Check Battle
+        for (const trigger of BATTLE_TRIGGERS) {
+            if (content === trigger || content.startsWith(trigger + ' ')) {
+                return checkAndUpdateGoal(message.author.id, 'battle', 1);
+            }
+        }
+
+        // Check Pray
+        for (const trigger of PRAY_TRIGGERS) {
+            if (content === trigger || content.startsWith(trigger + ' ')) {
+                return checkAndUpdateGoal(message.author.id, 'pray', 1);
+            }
+        }
+
+        // Check Curse
+        for (const trigger of CURSE_TRIGGERS) {
+            if (content === trigger || content.startsWith(trigger + ' ')) {
+                return checkAndUpdateGoal(message.author.id, 'curse', 1);
+            }
+        }
+
+        // Check OwO
+        for (const trigger of OWO_TRIGGERS) {
+            if (content === trigger || content.startsWith(trigger + ' ')) {
+                return checkAndUpdateGoal(message.author.id, 'owo', 1);
+            }
+        }
+
+        return null;
+    },
+
     async execute(message, args) {
         try {
             const userId = message.author.id;

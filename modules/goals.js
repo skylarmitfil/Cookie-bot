@@ -80,10 +80,6 @@ function buildGoalsPayload(userId, category, username, avatarURL) {
 
     const buttonRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId(`goals_add_${category}_${userId}`)
-            .setLabel('+ Add Progress')
-            .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
             .setCustomId(`goals_set_${category}_${userId}`)
             .setLabel('Set Target')
             .setStyle(ButtonStyle.Primary),
@@ -142,29 +138,7 @@ module.exports = {
                     const btnCategory = parts[2];
                     const userGoalData = getOrCreateUserGoal(targetUserId, btnCategory);
 
-                    if (action === 'add') {
-                        await interaction.reply({ content: 'How much would you like to add? (Type a number between 1 and 1,000,000)', ephemeral: true });
-                        
-                        const filter = m => m.author.id === targetUserId;
-                        const collectorFilter = message.channel.createMessageCollector({ filter, time: 15000, max: 1 });
-
-                        collectorFilter.on('collect', async (m) => {
-                            const amount = parseFloat(m.content.replace(/,/g, ''));
-                            m.delete().catch(() => {});
-                            
-                            if (!isNaN(amount) && amount >= 1 && amount <= 1000000) {
-                                userGoalData.current += amount;
-                                saveGoalsData();
-
-                                const updatedPayload = buildGoalsPayload(targetUserId, btnCategory, interaction.user.username, interaction.user.displayAvatarURL({ forceStatic: false, size: 256 }));
-                                await menuMessage.edit(updatedPayload);
-                            } else {
-                                message.channel.send({ content: `<@${targetUserId}> ❌ Invalid amount! It must be a number between 1 and 1,000,000.` }).then(msg => {
-                                    setTimeout(() => msg.delete().catch(() => {}), 5000);
-                                });
-                            }
-                        });
-                    } else if (action === 'set') {
+                    if (action === 'set') {
                         await interaction.reply({ content: 'What is your new target goal amount? (Type a number between 1 and 1,000,000)', ephemeral: true });
                         
                         const filter = m => m.author.id === targetUserId;

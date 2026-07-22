@@ -54,12 +54,15 @@ function getOrCreateUserGoal(userId, category) {
   return userMap[category];
 }
 
-function createProgressBar(current, target, length = 10) {
-  if (target <= 0) return '▬'.repeat(length);
+// Micro blue-line progress bar function
+function createProgressBar(current, target, length = 5) {
+  if (target <= 0) return '-'.repeat(length);
+  
   const percentage = Math.min(Math.max(current / target, 0), 1);
   const progress = Math.round(length * percentage);
   const empty = length - progress;
-  return '🟦'.repeat(progress) + '▬'.repeat(empty);
+  
+  return '➖'.repeat(progress) + '-'.repeat(empty);
 }
 
 function checkAndUpdateGoal(userId, category, incrementAmount = 1) {
@@ -87,7 +90,6 @@ function checkAndUpdateGoal(userId, category, incrementAmount = 1) {
   return { data, notification };
 }
 
-// Fixed trigger logic: Ensures exact matches or valid space breaks
 function matchesTrigger(content, triggers) {
   return triggers.some(trigger => content === trigger || content.startsWith(trigger + ' '));
 }
@@ -95,14 +97,12 @@ function matchesTrigger(content, triggers) {
 module.exports = {
   name: 'goal',
   
-  // EXPORTED LISTENER: Run this manually in your main bot event listener file!
   async handleMessage(message) {
     if (message.author.bot) return;
     const content = message.content.trim().toLowerCase();
     const userId = message.author.id;
     let result = null;
 
-    // Ordered specific to general so 'owo hunt' isn't stolen by 'owo'
     if (matchesTrigger(content, HUNT_TRIGGERS)) {
       result = checkAndUpdateGoal(userId, 'hunt', 1);
     } else if (matchesTrigger(content, BATTLE_TRIGGERS)) {
@@ -127,9 +127,10 @@ module.exports = {
   async execute(message, args) {
     try {
       const userId = message.author.id;
+      const subCommand = args && args[0] ? args[0].toLowerCase() : null;
 
       // Handle ".goal set <category> <amount>"
-      if (args && args.length > 0 && args[0].toLowerCase() === 'set') {
+      if (subCommand === 'set') {
         if (!args[1]) {
           return message.reply('❌ **Error:** You must specify a category to set.\nExample: `.goal set hunt 5000`');
         }
@@ -161,13 +162,41 @@ module.exports = {
         return message.reply({ embeds: [embed] });
       }
 
+      // Handle ".goal reset <category|all>"
+      if (subCommand === 'reset') {
+        if (!args[1]) {
+          return message.reply('❌ **Error:** Specify a category to reset, or use `all`.\nExample: `.goal reset hunt` or `.goal reset all`');
+        }
+        
+        const targetReset = args[1].toLowerCase();
+        
+        if (targetReset === 'all') {
+          userGoals.set(userId, {});
+          saveGoalsData();
+          return message.reply('🔄 **Success:** All your goal tracking profiles have been completely reset to 0!');
+        }
+        
+        if (!VALID_CATEGORIES.includes(targetReset)) {
+          return message.reply('❌ **Error:** Invalid category! Pick: `Hunt`, `Battle`, `Pray`, `Curse`, `OwO`, or `all`.');
+        }
+
+        if (userGoals.has(userId)) {
+          const userMap = userGoals.get(userId);
+          userMap[targetReset] = { target: 0, current: 0, lastMilestone: 0 };
+          saveGoalsData();
+        }
+        
+        const capitalizedCategory = targetReset.charAt(0).toUpperCase() + targetReset.slice(1);
+        return message.reply(`🔄 **Success:** Your **${capitalizedCategory}** goal has been reset to 0.`);
+      }
+
       // Handle ".goal" display
       const embed = new EmbedBuilder()
         .setColor(0x00AE86)
         .setTitle(`🎯 ${message.author.username}'s Goals`);
 
       let description = '';
-      const userMap = userGoals.get(userId) || {}; // Safe fallback to avoid crashes
+      const userMap = userGoals.get(userId) || {};
 
       for (const cat of VALID_CATEGORIES) {
         const data = userMap[cat] ? userMap[cat] : { current: 0, target: 0 };

@@ -25,7 +25,6 @@ if (fs.existsSync(modulesPath)) {
         if (mod && mod.name) {
           // Store module names in lowercase for safe lookup match consistency
           client.modules.set(mod.name.toLowerCase(), mod);
-          
           if (typeof mod.init === 'function') {
             mod.init(client);
           }
@@ -49,9 +48,10 @@ client.on(Events.MessageCreate, async (message) => {
   const prefix = '.';
   const content = message.content.trim();
 
-  // 1. --- PASSIVE TRACKING PIPELINE ---
-  // Sends text streams directly to your background reminder file 
-  // without needing a leading dot prefix
+  // 1. --- PASSIVE TRACKING PIPELINE --- 
+  // Sends text streams directly to your background reminder file
+
+  // [A] Run owoReminders passive background pipeline
   const reminderMod = client.modules.get('oworeminders');
   if (reminderMod && typeof reminderMod.execute === 'function') {
     reminderMod.execute(message, prefix).catch(err => {
@@ -59,14 +59,23 @@ client.on(Events.MessageCreate, async (message) => {
     });
   }
 
-  // 2. --- EXPLICIT PREFIX COMMAND PIPELINE ---
+  // [B] Run your Goal Tracking background counter pipeline
+  const goalMod = client.modules.get('goal');
+  if (goalMod && typeof goalMod.handleMessage === 'function') {
+    goalMod.handleMessage(message).catch(err => {
+      console.error('[PASSIVE MODULE ERROR] Goal counter failure:', err);
+    });
+  }
+
+
+  // 2. --- EXPLICIT PREFIX COMMAND PIPELINE --- 
   // Only process standard bot commands if they start with the prefix string
   if (!content.startsWith(prefix)) return;
 
   const args = content.slice(prefix.length).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();
 
-  // Prevent running the reminder module a second time as a direct text command
+  // Prevent running the tracking/reminder modules as direct prefix text commands
   if (commandName === 'oworeminders') return;
 
   if (client.modules.has(commandName)) {
@@ -81,4 +90,3 @@ client.on(Events.MessageCreate, async (message) => {
 
 // Login using your secure application environment token
 client.login(process.env.DISCORD_TOKEN || process.env.TOKEN);
-

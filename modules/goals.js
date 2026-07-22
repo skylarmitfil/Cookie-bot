@@ -93,56 +93,36 @@ function checkAndUpdateGoal(userId, category, incrementAmount = 1) {
     return { data, notification };
 }
 
+function matchesTrigger(content, triggers) {
+    return triggers.some(trigger => content === trigger || content.startsWith(trigger + ' '));
+}
+
 module.exports = {
     name: 'goal',
     checkAndUpdateGoal,
-    HUNT_TRIGGERS,
-    BATTLE_TRIGGERS,
-    PRAY_TRIGGERS,
-    CURSE_TRIGGERS,
-    OWO_TRIGGERS,
 
-    handleMessage(message) {
+    async handleMessage(message) {
         if (message.author.bot) return;
 
         const content = message.content.trim().toLowerCase();
+        const userId = message.author.id;
+        let result = null;
 
-        // Check Hunt
-        for (const trigger of HUNT_TRIGGERS) {
-            if (content === trigger || content.startsWith(trigger + ' ')) {
-                return checkAndUpdateGoal(message.author.id, 'hunt', 1);
-            }
+        if (matchesTrigger(content, HUNT_TRIGGERS)) {
+            result = checkAndUpdateGoal(userId, 'hunt', 1);
+        } else if (matchesTrigger(content, BATTLE_TRIGGERS)) {
+            result = checkAndUpdateGoal(userId, 'battle', 1);
+        } else if (matchesTrigger(content, PRAY_TRIGGERS)) {
+            result = checkAndUpdateGoal(userId, 'pray', 1);
+        } else if (matchesTrigger(content, CURSE_TRIGGERS)) {
+            result = checkAndUpdateGoal(userId, 'curse', 1);
+        } else if (matchesTrigger(content, OWO_TRIGGERS)) {
+            result = checkAndUpdateGoal(userId, 'owo', 1);
         }
 
-        // Check Battle
-        for (const trigger of BATTLE_TRIGGERS) {
-            if (content === trigger || content.startsWith(trigger + ' ')) {
-                return checkAndUpdateGoal(message.author.id, 'battle', 1);
-            }
+        if (result && result.notification) {
+            await message.channel.send(result.notification);
         }
-
-        // Check Pray
-        for (const trigger of PRAY_TRIGGERS) {
-            if (content === trigger || content.startsWith(trigger + ' ')) {
-                return checkAndUpdateGoal(message.author.id, 'pray', 1);
-            }
-        }
-
-        // Check Curse
-        for (const trigger of CURSE_TRIGGERS) {
-            if (content === trigger || content.startsWith(trigger + ' ')) {
-                return checkAndUpdateGoal(message.author.id, 'curse', 1);
-            }
-        }
-
-        // Check OwO
-        for (const trigger of OWO_TRIGGERS) {
-            if (content === trigger || content.startsWith(trigger + ' ')) {
-                return checkAndUpdateGoal(message.author.id, 'owo', 1);
-            }
-        }
-
-        return null;
     },
 
     async execute(message, args) {

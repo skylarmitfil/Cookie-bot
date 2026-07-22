@@ -1,10 +1,11 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = '/app/data';
 const GOALS_FILE = path.join(DATA_DIR, 'userGoals.json');
 let userGoals = new Map();
+
+const VALID_CATEGORIES = ['hunt', 'battle', 'pray', 'curse', 'owo'];
 
 try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -38,134 +39,71 @@ function getOrCreateUserGoal(userId, category) {
     const userMap = userGoals.get(userId);
     if (!userMap[category]) {
         userMap[category] = {
-            target: 1000,
-            current: 0
+            target: 0,
+            current: 0,
+            lastMilestone: 0
         };
         saveGoalsData();
+    }
+    if (userMap[category].lastMilestone === undefined) {
+        userMap[category].lastMilestone = 0;
     }
     return userMap[category];
 }
 
-function buildGoalsPayload(userId, category, username, avatarURL) {
+function checkAndUpdateGoal(userId, category, incrementAmount = 1) {
     const data = getOrCreateUserGoal(userId, category);
-    const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
-    
-    const progressPercent = data.target > 0 ? Math.min(Math.floor((data.current / data.target) * 100), 100) : 0;
-    const progressBar = createProgressBar(progressPercent);
+    data.current += incrementAmount;
 
-    const embed = new EmbedBuilder()
-        .setTitle(`${username}'s Goal Tracker`)
-        .setColor(progressPercent >= 100 ? 0x57F287 : 0x5865F2)
-        .setDescription(
-            `📁 **Selected Category:** \`${capitalizedCategory}\`\n\n` +
-            `🎯 **Target:** \`${Number(data.target).toLocaleString()}\`\n` +
-            `💎 **Current:** \`${Number(data.current).toLocaleString()}\`\n\n` +
-            `**Progress:** [${progressPercent}%]\n${progressBar}`
-        )
-        .setThumbnail(avatarURL)
-        .setTimestamp();
+    let notification = null;
 
-    const selectMenuRow = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-            .setCustomId(`goals_select_${userId}`)
-            .setPlaceholder('Select a goal category...')
-            .addOptions([
-                { label: 'Hunt', value: 'hunt', emoji: '🏹', default: category === 'hunt' },
-                { label: 'Battle', value: 'battle', emoji: '⚔️', default: category === 'battle' },
-                { label: 'Pray', value: 'pray', emoji: '🙏', default: category === 'pray' },
-                { label: 'Curse', value: 'curse', emoji: '🤬', default: category === 'curse' },
-                { label: 'OwO', value: 'owo', emoji: '✨', default: category === 'owo' }
-            ])
-    );
+    const currentMilestone = Math.floor(data.current / 50) * 50;
+    if (currentMilestone > 0 && currentMilestone > data.lastMilestone) {
+        data.lastMilestone = currentMilestone;
+        notification = `🎉 <@${userId}> reached **${currentMilestone}** progress in **${category.toUpperCase()}**!`;
+    }
 
-    const buttonRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`goals_set_${category}_${userId}`)
-            .setLabel('Set Target')
-            .setStyle(ButtonStyle.Primary)
-    );
-
-    return { embeds: [embed], components: [selectMenuRow, buttonRow] };
-}
-
-function createProgressBar(percent) {
-    const totalBars = 10;
-    const filledBars = Math.round((percent / 100) * totalBars);
-    const emptyBars = totalBars - filledBars;
-    return '█'.repeat(filledBars) + '░'.repeat(emptyBars);
+    saveGoalsData();
+    return { data, notification };
 }
 
 module.exports = {
-    name: 'goals',
+    name: 'goal',
+    checkAndUpdateGoal,
 
     async execute(message, args) {
         try {
+            if (!args || args.length < 1) {
+                return message.reply('❌ **Error:** You must pick one of these categories: `Hunt`, `Battle`, `Pray`, `Curse`, or `OwO`.\nExample: `.goal hunt 5000`');
+            }
+
+            const category = args[0].toLowerCase();
+
+            if (!VALID_CATEGORIES.includes(category)) {
+                return message.reply('❌ **Error:** Invalid category! You must pick either `Hunt`, `Battle`, `Pray`, `Curse`, or `OwO`.');
+            }
+
             const userId = message.author.id;
             const username = message.author.username;
-            const avatarURL = message.author.displayAvatarURL({ forceStatic: false, size: 256 });
+            const data = getOrCreateUserGoal(userId, category);
+            
+            const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
 
-            const initialCategory = args && args[0] && ['hunt', 'battle', 'pray', 'curse', 'owo'].includes(args[0].toLowerCase()) 
-                ? args[0].toLowerCase() 
-                : 'hunt';
+            if (!args[1]) {
+                return message.reply(`**${username}'s Goal: ${capitalizedCategory}** target goal ${Number(data.target).toLocaleString()}`);
+            }
 
-            const payload = buildGoalsPayload(userId, initialCategory, username, avatarURL);
-            const menuMessage = await message.reply(payload);
-
-            const collector = menuMessage.createMessageComponentCollector({ 
-                idle: 60000 
-            });
-
-            collector.on('collect', async (interaction) => {
-                const targetUserId = interaction.customId.split('_').pop();
-
-                if (interaction.user.id !== targetUserId) {
-                    return interaction.reply({ content: '❌ Not your goal panel!', ephemeral: true });
-                }
-
-                if (interaction.isStringSelectMenu()) {
-                    const selectedCategory = interaction.values[0];
-                    const updatedPayload = buildGoalsPayload(targetUserId, selectedCategory, interaction.user.username, interaction.user.displayAvatarURL({ forceStatic: false, size: 256 }));
-                    return await interaction.update(updatedPayload);
-                }
-
-                if (interaction.isButton()) {
-                    const parts = interaction.customId.split('_');
-                    const action = parts[1];
-                    const btnCategory = parts[2];
-                    const userGoalData = getOrCreateUserGoal(targetUserId, btnCategory);
-
-                    if (action === 'set') {
-                        await interaction.reply({ content: 'What is your new target goal amount? (Type a number between 1 and 1,000,000)', ephemeral: true });
-                        
-                        const filter = m => m.author.id === targetUserId;
-                        const collectorFilter = message.channel.createMessageCollector({ filter, time: 15000, max: 1 });
-
-                        collectorFilter.on('collect', async (m) => {
-                            const amount = parseFloat(m.content.replace(/,/g, ''));
-                            m.delete().catch(() => {});
-                            
-                            if (!isNaN(amount) && amount >= 1 && amount <= 1000000) {
-                                userGoalData.target = amount;
-                                saveGoalsData();
-
-                                const updatedPayload = buildGoalsPayload(targetUserId, btnCategory, interaction.user.username, interaction.user.displayAvatarURL({ forceStatic: false, size: 256 }));
-                                await menuMessage.edit(updatedPayload);
-                            } else {
-                                message.channel.send({ content: `<@${targetUserId}> ❌ Invalid target! It must be a number between 1 and 1,000,000.` }).then(msg => {
-                                    setTimeout(() => msg.delete().catch(() => {}), 5000);
-                                });
-                            }
-                        });
-                    }
-                }
-            });
-
-            collector.on('end', () => {
-                menuMessage.edit({ components: [] }).catch(() => {});
-            });
+            const amount = parseFloat(args[1].replace(/,/g, ''));
+            if (!isNaN(amount) && amount >= 0 && amount <= 1000000) {
+                data.target = amount;
+                saveGoalsData();
+                return message.reply(`**${username}'s Goal: ${capitalizedCategory}** target set ${Number(data.target).toLocaleString()}`);
+            } else {
+                return message.reply(`❌ **Error:** Target goal must be a number between 0 and 1,000,000.`);
+            }
 
         } catch (error) {
-            console.error('[GOALS COMMAND ERROR]:', error);
+            console.error('[GOAL COMMAND ERROR]:', error);
         }
     }
 };

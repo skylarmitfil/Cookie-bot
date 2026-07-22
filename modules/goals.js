@@ -38,6 +38,11 @@ function saveGoalsData() {
   }
 }
 
+// Fixed trigger logic: Ensures exact matches or valid space breaks
+function matchesTrigger(content, triggers) {
+  return triggers.some(trigger => content === trigger || content.startsWith(trigger + ' '));
+}
+
 function getOrCreateUserGoal(userId, category) {
   if (!userGoals.has(userId)) {
     userGoals.set(userId, {});
@@ -55,6 +60,7 @@ function getOrCreateUserGoal(userId, category) {
 
 function createProgressBar(current, target, length = 10) {
   if (target <= 0) return '▬'.repeat(length);
+  // Cap calculation ratio at 1 max so it never overflows past length slots visually
   const percentage = Math.min(Math.max(current / target, 0), 1);
   const progress = Math.round(length * percentage);
   const empty = length - progress;
@@ -65,23 +71,40 @@ function checkAndUpdateGoal(userId, category, incrementAmount = 1) {
   const data = getOrCreateUserGoal(userId, category);
   data.current += incrementAmount;
   let notification = null;
+
+  // Check if the user just completed their goal (100%)
+  const isNewlyCompleted = data.target > 0 && data.current >= data.target && data.lastMilestone < data.target;
+  
+  // Original 50-count milestone logic
   const currentMilestone = Math.floor(data.current / 50) * 50;
-  if (currentMilestone > 0 && currentMilestone > data.lastMilestone) {
-    data.lastMilestone = currentMilestone;
+  const isMilestoneReached = currentMilestone > 0 && currentMilestone > data.lastMilestone;
+
+  if (isNewlyCompleted || isMilestoneReached) {
+    data.lastMilestone = isNewlyCompleted ? Math.max(data.target, currentMilestone) : currentMilestone;
+
     const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
     const progressBar = createProgressBar(data.current, data.target);
     const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
+    
     const embed = new EmbedBuilder()
       .setColor(0x00AE86)
       .setDescription(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
-    notification = { content: `🎉 <@${userId}> reached **${currentMilestone}** progress in **${category.toUpperCase()}**!`, embeds: [embed] };
+
+    if (isNewlyCompleted) {
+      notification = { 
+        content: `🏆 <@${userId}> **COMPLETED** their **${category.toUpperCase()}** goal of **${Number(data.target).toLocaleString()}**! 🎉🎉`, 
+        embeds: [embed] 
+      };
+    } else {
+      notification = { 
+        content: `🎉 <@${userId}> reached **${currentMilestone}** progress in **${category.toUpperCase()}**!`, 
+        embeds: [embed] 
+      };
+    }
   }
+
   saveGoalsData();
   return { data, notification };
-}
-
-function matchesTrigger(content, triggers) {
-  return triggers.some(trigger => content === trigger || content.startsWith(trigger + ' '));
 }
 
 module.exports = {
@@ -119,7 +142,7 @@ module.exports = {
         }
         const category = args[1].toLowerCase();
         if (!VALID_CATEGORIES.includes(category)) {
-          return message.reply('❌ **Error:** Invalid category! You must pick either `Hunt`, `Battle`, `Pray`, `Curse`, or `OwO`.');
+          return message.reply('❌ **Error:** Invalid category! Pick: `Hunt`, `Battle`, `Pray`, `Curse`, or `OwO`.');
         }
         if (!args[2]) {
           return message.reply('❌ **Error:** You must specify a target amount.\nExample: `.goal set hunt 5000`');
@@ -168,12 +191,12 @@ module.exports = {
         return message.reply(`🔄 **Success:** Your **${capitalizedCategory}** goal has been reset to 0.`);
       }
 
-      // Handle ".goal" to display all goals in a single embed
+      // Handle ".goal" display panel
       const embed = new EmbedBuilder()
         .setColor(0x00AE86)
         .setTitle(`🎯 ${message.author.username}'s Goals`);
       let description = '';
-      const userMap = userGoals.get(userId) || {}; // Safe crash protection fallback
+      const userMap = userGoals.get(userId) || {};
       for (const cat of VALID_CATEGORIES) {
         const data = userMap[cat] ? userMap[cat] : { current: 0, target: 0 };
         const capitalizedCategory = cat.charAt(0).toUpperCase() + cat.slice(1);

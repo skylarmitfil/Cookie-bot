@@ -84,20 +84,19 @@ module.exports = {
             }
 
             const userId = message.author.id;
-            const username = message.author.username;
             const data = getOrCreateUserGoal(userId, category);
             
             const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
 
             if (!args[1]) {
-                return message.reply(`**${username}'s Goal: ${capitalizedCategory}** target goal ${Number(data.target).toLocaleString()}`);
+                return message.reply(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` goal`);
             }
 
             const amount = parseFloat(args[1].replace(/,/g, ''));
             if (!isNaN(amount) && amount >= 0 && amount <= 1000000) {
                 data.target = amount;
                 saveGoalsData();
-                return message.reply(`**${username}'s Goal: ${capitalizedCategory}** target set ${Number(data.target).toLocaleString()}`);
+                return message.reply(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\``);
             } else {
                 return message.reply(`❌ **Error:** Target goal must be a number between 0 and 1,000,000.`);
             }

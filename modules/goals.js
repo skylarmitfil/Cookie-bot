@@ -54,15 +54,15 @@ function getOrCreateUserGoal(userId, category) {
   return userMap[category];
 }
 
-// Micro blue-line progress bar function
+// Guaranteed Cross-Platform Blue Diamond Progress Bar
 function createProgressBar(current, target, length = 5) {
-  if (target <= 0) return '-'.repeat(length);
+  if (target <= 0) return '▫️'.repeat(length);
   
   const percentage = Math.min(Math.max(current / target, 0), 1);
   const progress = Math.round(length * percentage);
   const empty = length - progress;
   
-  return '➖'.repeat(progress) + '-'.repeat(empty);
+  return '🔹'.repeat(progress) + '▫️'.repeat(empty);
 }
 
 function checkAndUpdateGoal(userId, category, incrementAmount = 1) {
@@ -103,6 +103,7 @@ module.exports = {
     const userId = message.author.id;
     let result = null;
 
+    // Checked from specific to general so 'owo hunt' isn't stolen by 'owo'
     if (matchesTrigger(content, HUNT_TRIGGERS)) {
       result = checkAndUpdateGoal(userId, 'hunt', 1);
     } else if (matchesTrigger(content, BATTLE_TRIGGERS)) {

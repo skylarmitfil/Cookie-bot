@@ -7,6 +7,11 @@ const GOALS_FILE = path.join(DATA_DIR, 'userGoals.json');
 let userGoals = new Map();
 
 const VALID_CATEGORIES = ['hunt', 'battle', 'pray', 'curse', 'owo'];
+const HUNT_TRIGGERS = ['owo hunt', 'owoh', 'owo h', 'wh', 'w h'];
+const BATTLE_TRIGGERS = ['owo battle', 'owob', 'owo b', 'wb', 'w b'];
+const PRAY_TRIGGERS = ['owo pray', 'w pray'];
+const CURSE_TRIGGERS = ['owo curse', 'w curse'];
+const OWO_TRIGGERS = ['owo', 'uwu'];
 
 try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -91,6 +96,11 @@ function checkAndUpdateGoal(userId, category, incrementAmount = 1) {
 module.exports = {
     name: 'goal',
     checkAndUpdateGoal,
+    HUNT_TRIGGERS,
+    BATTLE_TRIGGERS,
+    PRAY_TRIGGERS,
+    CURSE_TRIGGERS,
+    OWO_TRIGGERS,
 
     async execute(message, args) {
         try {

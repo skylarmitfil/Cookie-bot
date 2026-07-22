@@ -9,7 +9,7 @@ module.exports = {
                     activities: [{
                         name: 'Watching Your OwO Commands',
                         type: ActivityType.Streaming,
-                        url: 'https://www.twitch.tv/monstercat' // Test with this known URL
+                        url: 'https://www.youtube.com/watch?v=m9nnMSwiGag' 
                     }],
                     status: 'online'
                 });

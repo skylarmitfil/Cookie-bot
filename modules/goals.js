@@ -57,7 +57,7 @@ function createProgressBar(current, target, length = 10) {
     const percentage = Math.min(Math.max(current / target, 0), 1);
     const progress = Math.round(length * percentage);
     const empty = length - progress;
-    return '█'.repeat(progress) + '▬'.repeat(empty);
+    return '🟦'.repeat(progress) + '▬'.repeat(empty);
 }
 
 function checkAndUpdateGoal(userId, category, incrementAmount = 1) {
@@ -138,7 +138,8 @@ module.exports = {
 
             let description = '';
             for (const cat of VALID_CATEGORIES) {
-                const data = getOrCreateUserGoal(userId, cat);
+                const userMap = userGoals.get(userId);
+                const data = userMap && userMap[cat] ? userMap[cat] : { current: 0, target: 0 };
                 const capitalizedCategory = cat.charAt(0).toUpperCase() + cat.slice(1);
                 const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
                 const progressBar = createProgressBar(data.current, data.target);

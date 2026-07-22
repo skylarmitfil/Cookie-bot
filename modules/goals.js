@@ -13,7 +13,6 @@ const PRAY_TRIGGERS = ['owo pray', 'w pray'];
 const CURSE_TRIGGERS = ['owo curse', 'w curse'];
 const OWO_TRIGGERS = ['owo', 'uwu'];
 
-// Storage Initialization
 try {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -54,37 +53,28 @@ function getOrCreateUserGoal(userId, category) {
   return userMap[category];
 }
 
-// Flat Micro Codeblock Progress Bar (Forces consistent font sizing)
-function createProgressBar(current, target, length = 5) {
-  if (target <= 0) return '`- - - - -`';
-  
+function createProgressBar(current, target, length = 10) {
+  if (target <= 0) return '▬'.repeat(length);
   const percentage = Math.min(Math.max(current / target, 0), 1);
   const progress = Math.round(length * percentage);
   const empty = length - progress;
-  
-  return '`' + '■'.repeat(progress) + '-'.repeat(empty) + '`';
+  return '🟦'.repeat(progress) + '▬'.repeat(empty);
 }
 
 function checkAndUpdateGoal(userId, category, incrementAmount = 1) {
   const data = getOrCreateUserGoal(userId, category);
   data.current += incrementAmount;
   let notification = null;
-
   const currentMilestone = Math.floor(data.current / 50) * 50;
   if (currentMilestone > 0 && currentMilestone > data.lastMilestone) {
     data.lastMilestone = currentMilestone;
     const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
     const progressBar = createProgressBar(data.current, data.target);
     const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
-
     const embed = new EmbedBuilder()
       .setColor(0x00AE86)
       .setDescription(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
-
-    notification = {
-      content: `🎉 <@${userId}> reached **${currentMilestone}** progress in **${category.toUpperCase()}**!`,
-      embeds: [embed]
-    };
+    notification = { content: `🎉 <@${userId}> reached **${currentMilestone}** progress in **${category.toUpperCase()}**!`, embeds: [embed] };
   }
   saveGoalsData();
   return { data, notification };
@@ -96,13 +86,12 @@ function matchesTrigger(content, triggers) {
 
 module.exports = {
   name: 'goal',
-  
+  checkAndUpdateGoal,
   async handleMessage(message) {
     if (message.author.bot) return;
     const content = message.content.trim().toLowerCase();
     const userId = message.author.id;
     let result = null;
-
     if (matchesTrigger(content, HUNT_TRIGGERS)) {
       result = checkAndUpdateGoal(userId, 'hunt', 1);
     } else if (matchesTrigger(content, BATTLE_TRIGGERS)) {
@@ -114,16 +103,10 @@ module.exports = {
     } else if (matchesTrigger(content, OWO_TRIGGERS)) {
       result = checkAndUpdateGoal(userId, 'owo', 1);
     }
-
     if (result && result.notification) {
-      try {
-        await message.channel.send(result.notification);
-      } catch (err) {
-        console.error('[GOAL NOTIFY ERROR]:', err.message);
-      }
+      await message.channel.send(result.notification);
     }
   },
-
   async execute(message, args) {
     try {
       const userId = message.author.id;
@@ -136,29 +119,24 @@ module.exports = {
         }
         const category = args[1].toLowerCase();
         if (!VALID_CATEGORIES.includes(category)) {
-          return message.reply('❌ **Error:** Invalid category! Pick: `Hunt`, `Battle`, `Pray`, `Curse`, or `OwO`.');
+          return message.reply('❌ **Error:** Invalid category! You must pick either `Hunt`, `Battle`, `Pray`, `Curse`, or `OwO`.');
         }
         if (!args[2]) {
           return message.reply('❌ **Error:** You must specify a target amount.\nExample: `.goal set hunt 5000`');
         }
-
         const amount = parseFloat(args[2].replace(/,/g, ''));
         if (isNaN(amount) || amount < 0 || amount > 1000000) {
           return message.reply(`❌ **Error:** Target goal must be a number between 0 and 1,000,000.`);
         }
-
         const data = getOrCreateUserGoal(userId, category);
         data.target = amount;
         saveGoalsData();
-
         const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
         const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
         const progressBar = createProgressBar(data.current, data.target);
-
         const embed = new EmbedBuilder()
           .setColor(0x00AE86)
           .setDescription(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
-
         return message.reply({ embeds: [embed] });
       }
 
@@ -190,26 +168,21 @@ module.exports = {
         return message.reply(`🔄 **Success:** Your **${capitalizedCategory}** goal has been reset to 0.`);
       }
 
-      // Handle ".goal" display
+      // Handle ".goal" to display all goals in a single embed
       const embed = new EmbedBuilder()
         .setColor(0x00AE86)
         .setTitle(`🎯 ${message.author.username}'s Goals`);
-
       let description = '';
-      const userMap = userGoals.get(userId) || {};
-
+      const userMap = userGoals.get(userId) || {}; // Safe crash protection fallback
       for (const cat of VALID_CATEGORIES) {
         const data = userMap[cat] ? userMap[cat] : { current: 0, target: 0 };
         const capitalizedCategory = cat.charAt(0).toUpperCase() + cat.slice(1);
         const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
         const progressBar = createProgressBar(data.current, data.target);
-
         description += `**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}\n\n`;
       }
-
       embed.setDescription(description.trim());
       return message.reply({ embeds: [embed] });
-
     } catch (error) {
       console.error('[GOAL COMMAND ERROR]:', error);
     }

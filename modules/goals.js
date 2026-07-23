@@ -136,7 +136,7 @@ function checkAndUpdateGoal(userId, category, message) {
 }
 
 module.exports = {
-  name: 'goals',
+  name: 'goal',
   checkAndUpdateGoal,
   async handleMessage(message) {
     if (message.author.bot) return;

@@ -91,6 +91,7 @@ function getCategoryDisplayName(category) {
   if (category === 'pc') return 'Pray/Curse';
   return category.charAt(0).toUpperCase() + category.slice(1);
 }
+
 function checkAndUpdateGoal(userId, category, message, triggeredBy = null) {
   const data = getOrCreateUserGoal(userId, category);
   

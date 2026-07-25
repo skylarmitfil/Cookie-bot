@@ -7,15 +7,18 @@ module.exports = {
         try {
             const prefix = '.'; 
 
-            const mainText = `[Bot Website](https://discord-cookie.com)\n\n` +
+            const mainText = `### Cookie's command list\n` +
+                             `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Main Commands:**\n` +
                              `┃ \`${prefix}c hunt\` \`${prefix}c battle\` \`${prefix}c pray\` \`${prefix}c curse\` \`${prefix}c owo\``;
 
-            const goalText = `[Bot Website](https://discord-cookie.com)\n\n` +
+            const goalText = `### Cookie's command list\n` +
+                             `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Goal Tracking:**\n` +
                              `┃ \`${prefix}goal\` — View your current progress and goals`;
 
-            const reminderText = `[Bot Website](https://discord-cookie.com)\n\n` +
+            const reminderText = `### Cookie's command list\n` +
+                                 `[Bot Website](https://discord-cookie.com)\n\n` +
                                  `**Custom Reminders:**\n` +
                                  `┃ \`${prefix}reminder\` — View reminder settings & active alerts\n` +
                                  `┃ \`${prefix}reminder msg <hb/pc/owo> <text>\` — Set custom alert text\n` +

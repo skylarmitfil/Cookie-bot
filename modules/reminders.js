@@ -1,79 +1,126 @@
 const fs = require('fs');
 const path = require('path');
-const { SlashCommandBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 
-const FILE_PATH = path.join('/app/data', 'userReminderMessages.json');
-let reminderCache = new Map();
+const DATA_DIR = '/app/data';
+const REMINDERS_FILE = path.join(DATA_DIR, 'userReminders.json');
 
+// Map to store user custom reminder messages: userId -> { 'Hunt/Battle': '...', 'Pray/Curse': '...', 'OwO': '...' }
+let userReminderMsgs = new Map();
+
+// Storage Initialization
 try {
-  if (fs.existsSync(FILE_PATH)) {
-    const raw = fs.readFileSync(FILE_PATH, 'utf8');
-    if (raw.trim()) reminderCache = new Map(Object.entries(JSON.parse(raw)));
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
   }
-} catch (e) {
-  console.error('[STORAGE] Cache load error:', e.message);
+  if (fs.existsSync(REMINDERS_FILE)) {
+    const rawData = fs.readFileSync(REMINDERS_FILE, 'utf8');
+    if (rawData.trim()) {
+      const parsed = JSON.parse(rawData);
+      userReminderMsgs = new Map(Object.entries(parsed));
+      console.log(`[STORAGE] Successfully loaded ${userReminderMsgs.size} user custom reminder profiles.`);
+    }
+  }
+} catch (error) {
+  console.error(`[STORAGE ERROR] Reminders init error: ${error.message}`);
 }
 
-function persistData() {
+function saveRemindersData() {
   try {
-    fs.writeFileSync(FILE_PATH, JSON.stringify(Object.fromEntries(reminderCache), null, 2));
-  } catch (e) {
-    console.error('[STORAGE] Cache save error:', e.message);
+    const obj = Object.fromEntries(userReminderMsgs);
+    fs.writeFileSync(REMINDERS_FILE, JSON.stringify(obj, null, 2), 'utf8');
+  } catch (error) {
+    console.error(`[STORAGE ERROR] Reminders save error: ${error.message}`);
   }
 }
 
 module.exports = {
   name: 'reminder',
-  userReminderMsgs: reminderCache,
-  data: new SlashCommandBuilder()
-    .setName('reminder')
-    .setDescription('Configure your reminder settings')
-    .addSubcommand(sub =>
-      sub.setName('msg')
-        .setDescription('Set or reset reminder text')
-        .addStringOption(opt =>
-          opt.setName('which')
-            .setDescription('Select target tracker')
-            .setRequired(true)
-            .addChoices(
-              { name: 'Hunt/Battle', value: 'Hunt/Battle' },
-              { name: 'Pray/Curse', value: 'Pray/Curse' },
-              { name: 'OwO', value: 'OwO' },
-              { name: 'Reset Hunt/Battle', value: 'clear_hb' },
-              { name: 'Reset Pray/Curse', value: 'clear_pc' },
-              { name: 'Reset OwO', value: 'clear_owo' }
-            )
-        )
-        .addStringOption(opt =>
-          opt.setName('new')
-            .setDescription('New alert message text')
-            .setRequired(false)
-        )
-    ),
+  userReminderMsgs,
+  async execute(message, args) {
+    try {
+      const userId = message.author.id;
+      const subCommand = args && args[0] ? args[0].toLowerCase() : null;
 
-  async executeSlash(interaction) {
-    const uid = interaction.user.id;
-    const category = interaction.options.getString('which');
-    const msgText = interaction.options.getString('new');
+      if (subCommand === 'msg' || subCommand === 'message') {
+        const categoryArg = args[1] ? args[1].toLowerCase() : null;
+        let categoryKey = null;
 
-    if (category.startsWith('clear_')) {
-      const target = category === 'clear_pc' ? 'Pray/Curse' : category === 'clear_owo' ? 'OwO' : 'Hunt/Battle';
-      if (reminderCache.has(uid)) {
-        delete reminderCache.get(uid)[target];
-        persistData();
+        if (categoryArg === 'hunt' || categoryArg === 'battle' || categoryArg === 'hb') categoryKey = 'Hunt/Battle';
+        if (categoryArg === 'pray' || categoryArg === 'curse' || categoryArg === 'pc') categoryKey = 'Pray/Curse';
+        if (categoryArg === 'owo' || categoryArg === 'uwu') categoryKey = 'OwO';
+
+        if (!categoryKey) {
+          return message.reply('❌ **Error:** Specify a valid category (`hb`, `pc`, or `owo`) and your custom message.\nExample: `.reminder msg hb Time to hunt!`');
+        }
+
+        const customText = args.slice(2).join(' ').trim();
+        if (!customText) {
+          return message.reply('❌ **Error:** You cannot set an empty reminder message! Provide the text you want to use.');
+        }
+
+        if (!userReminderMsgs.has(userId)) {
+          userReminderMsgs.set(userId, {});
+        }
+        const userMsgs = userReminderMsgs.get(userId);
+        userMsgs[categoryKey] = customText;
+        saveRemindersData();
+
+        return message.reply(`✅ **Success:** Your custom reminder message for **${categoryKey}** has been updated to:\n> ${customText}`);
       }
-      return interaction.reply({ content: `🔄 Reset **${target}** to default.`, ephemeral: true });
+
+      if (subCommand === 'reset') {
+        const categoryArg = args[1] ? args[1].toLowerCase() : null;
+        if (!categoryArg) {
+          return message.reply('❌ **Error:** Specify a category to reset (`hb`, `pc`, `owo`, or `all`).');
+        }
+
+        let categoryKey = null;
+        if (categoryArg === 'hunt' || categoryArg === 'battle' || categoryArg === 'hb') categoryKey = 'Hunt/Battle';
+        if (categoryArg === 'pray' || categoryArg === 'curse' || categoryArg === 'pc') categoryKey = 'Pray/Curse';
+        if (categoryArg === 'owo' || categoryArg === 'uwu') categoryKey = 'OwO';
+
+        if (categoryArg === 'all') {
+          userReminderMsgs.delete(userId);
+          saveRemindersData();
+          return message.reply('🔄 **Success:** All your custom reminder messages have been reset to default.');
+        }
+
+        if (!categoryKey || !userReminderMsgs.has(userId)) {
+          return message.reply('❌ **Error:** Invalid category or no custom messages found to reset.');
+        }
+
+        const userMsgs = userReminderMsgs.get(userId);
+        delete userMsgs[categoryKey];
+        saveRemindersData();
+
+        return message.reply(`🔄 **Success:** Your custom reminder message for **${categoryKey}** has been reset to default.`);
+      }
+
+      // Default info embed if no valid subcommand given
+      const embed = new EmbedBuilder()
+        .setColor(0x00AE86)
+        .setTitle(`⏰ ${message.author.username}'s Custom Reminders`)
+        .setDescription(
+          'Customize your personal OwO reminder alert messages using text prefixes!\n\n' +
+          '**Commands:**\n' +
+          '• `.reminder msg hb <text>` — Set custom text for Hunt/Battle\n' +
+          '• `.reminder msg pc <text>` — Set custom text for Pray/Curse\n' +
+          '• `.reminder msg owo <text>` — Set custom text for OwO\n' +
+          '• `.reminder reset <hb/pc/owo/all>` — Reset to default messages'
+        );
+
+      const userMsgs = userReminderMsgs.get(userId) || {};
+      embed.addFields(
+        { name: 'Hunt/Battle Custom Text', value: userMsgs['Hunt/Battle'] || '*Default*', inline: false },
+        { name: 'Pray/Curse Custom Text', value: userMsgs['Pray/Curse'] || '*Default*', inline: false },
+        { name: 'OwO Custom Text', value: userMsgs['OwO'] || '*Default*', inline: false }
+      );
+
+      return message.reply({ embeds: [embed] });
+
+    } catch (error) {
+      console.error('[REMINDER COMMAND ERROR]:', error);
     }
-
-    if (!msgText) {
-      return interaction.reply({ content: '❌ Provide text for the `new` field or select a reset choice.', ephemeral: true });
-    }
-
-    if (!reminderCache.has(uid)) reminderCache.set(uid, {});
-    reminderCache.get(uid)[category] = msgText;
-    persistData();
-
-    return interaction.reply({ content: `✅ Updated **${category}** to:\n> ${msgText}`, ephemeral: true });
   }
 };
-

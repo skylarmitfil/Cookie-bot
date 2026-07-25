@@ -7,18 +7,15 @@ module.exports = {
         try {
             const prefix = '.'; 
 
-            const mainText = `────────────────────────\n\n` +
-                             `[Bot Website](https://discord-cookie.com)\n\n` +
+            const mainText = `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Main Commands:**\n` +
                              `┃ \`${prefix}c hunt\` \`${prefix}c battle\` \`${prefix}c pray\` \`${prefix}c curse\` \`${prefix}c owo\``;
 
-            const goalText = `────────────────────────\n\n` +
-                             `[Bot Website](https://discord-cookie.com)\n\n` +
+            const goalText = `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Goal Tracking:**\n` +
                              `┃ \`${prefix}goal\` — View your current progress and goals`;
 
-            const reminderText = `────────────────────────\n\n` +
-                                 `[Bot Website](https://discord-cookie.com)\n\n` +
+            const reminderText = `[Bot Website](https://discord-cookie.com)\n\n` +
                                  `**Custom Reminders:**\n` +
                                  `┃ \`${prefix}reminder\` — View reminder settings & active alerts\n` +
                                  `┃ \`${prefix}reminder msg <hb/pc/owo> <text>\` — Set custom alert text\n` +
@@ -44,14 +41,14 @@ module.exports = {
                                         {
                                             type: 3, 
                                             custom_id: 'help_select_menu',
-                                            placeholder: 'All quests list',
+                                            placeholder: 'All baisc commands',
                                             disabled: disabled,
                                             options: [
                                                 {
                                                     label: 'All quests list',
                                                     description: 'View main commands list',
                                                     value: 'help_main',
-                                                    emoji: { name: '📜' },
+                                                    emoji: { name: '<:SS_scroll:1530199583055941674>' },
                                                     default: selectedKey === 'help_main'
                                                 },
                                                 {
@@ -71,6 +68,9 @@ module.exports = {
                                             ]
                                         }
                                     ]
+                                },
+                                {
+                                    type: 14 // Separator Component
                                 },
                                 {
                                     type: 10, // TextDisplay

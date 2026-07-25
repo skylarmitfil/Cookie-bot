@@ -63,7 +63,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.commandName === 'reminder') {
     const reminderMod = client.modules.get('reminder');
     if (reminderMod && typeof reminderMod.execute === 'function') {
-      // Create a mock message object wrapper so reminderMod.execute works seamlessly with slash commands
       const mockMessage = {
         author: interaction.user,
         client: interaction.client,
@@ -77,7 +76,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
       };
 
-      // Pass empty args or extract options if subcommands are added later
       await reminderMod.execute(mockMessage, []);
     } else {
       await interaction.reply({ content: '❌ Reminder module is not loaded correctly.', ephemeral: true });
@@ -92,7 +90,7 @@ client.on(Events.MessageCreate, async (message) => {
   const prefix = '.';
   const content = message.content.trim();
 
-  // 1. Pass message to OwO reminders
+  // 1. Pass message to OwO reminders (if you have an oworeminders module)
   const reminderMod = client.modules.get('oworeminders');
   if (reminderMod && typeof reminderMod.execute === 'function') {
     reminderMod.execute(message).catch(err => {
@@ -100,7 +98,15 @@ client.on(Events.MessageCreate, async (message) => {
     });
   }
 
-  // 2. Command prefix router
+  // 2. Pass message to Goal tracker module so it counts hunts, battles, etc.
+  const goalMod = client.modules.get('goal');
+  if (goalMod && typeof goalMod.handleMessage === 'function') {
+    goalMod.handleMessage(message).catch(err => {
+      console.error('[PASSIVE MODULE ERROR] goal handleMessage failure:', err);
+    });
+  }
+
+  // 3. Command prefix router
   if (!content.startsWith(prefix)) return;
 
   const args = content.slice(prefix.length).trim().split(/ +/);

@@ -59,19 +59,38 @@ function getOrCreateUserGoal(userId, category) {
 }
 
 function createProgressBar(current, target, length = 10) {
-  if (target <= 0) return '▬'.repeat(length);
+  const LEFT_FILLED  = '<:blue_left_rounded:1530551328059953243>';
+  const MID_FILLED   = '<:blue:1530551332715499661>';
+  const RIGHT_FILLED = '<:SS_blue_right_rounded:1530551323337166879>';
+
+  const LEFT_EMPTY   = '<:SS_white_left_rounded:1530551337261989898>';
+  const MID_EMPTY    = '<:white:1530551348079366174>';
+  const RIGHT_EMPTY  = '<:SS_white_right_rounded:1530551341947289630>';
+
+  if (target <= 0 || current <= 0) {
+    return LEFT_EMPTY + MID_EMPTY.repeat(length - 2) + RIGHT_EMPTY;
+  }
+
   const percentage = Math.min(Math.max(current / target, 0), 1);
-  const progress = Math.round(length * percentage);
-  const empty = length - progress;
-  return '🟦'.repeat(progress) + '▬'.repeat(empty);
+  const totalFilledSegments = Math.round(length * percentage);
+  let bar = '';
+
+  bar += (totalFilledSegments >= 1) ? LEFT_FILLED : LEFT_EMPTY;
+
+  for (let i = 1; i < length - 1; i++) {
+    bar += (i < totalFilledSegments) ? MID_FILLED : MID_EMPTY;
+  }
+
+  bar += (totalFilledSegments >= length) ? RIGHT_FILLED : RIGHT_EMPTY;
+
+  return bar;
 }
 
 function scheduleGoalReminder(message, userId, category) {
-  let cooldownTime = 15000; 
+  let cooldownTime = 15000;
   if (category === 'pray' || category === 'curse') {
-    cooldownTime = 5 * 60 * 1000; 
+    cooldownTime = 5 * 60 * 1000;
   }
-
   setTimeout(async () => {
     try {
       const channel = message.channel;
@@ -79,12 +98,7 @@ function scheduleGoalReminder(message, userId, category) {
         const reminderEmbed = new EmbedBuilder()
           .setColor(0x00AE86)
           .setDescription(`⏰ **Reminder:** Your completed **${category.toUpperCase()}** cycle cooldown is over! You can start a new goal now.`);
-        
-        const notificationMsg = await channel.send({
-          content: `🔔 <@${userId}>, your goal reminder is up!`,
-          embeds: [reminderEmbed]
-        });
-
+        const notificationMsg = await channel.send({ content: `🔔 <@${userId}>, your goal reminder is up!`, embeds: [reminderEmbed] });
         setTimeout(() => notificationMsg.delete().catch(() => {}), 5000);
       }
     } catch (err) {
@@ -108,21 +122,32 @@ function checkAndUpdateGoal(userId, category, message) {
 
   if (isNewlyCompleted || isMilestoneReached) {
     data.lastMilestone = isNewlyCompleted ? Math.max(data.target, currentMilestone) : currentMilestone;
-
+    
     const percentage = ((data.current / data.target) * 100).toFixed(1);
     const progressBar = createProgressBar(data.current, data.target);
     const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
-    
+
     const embed = new EmbedBuilder()
       .setColor(0x00AE86)
       .setDescription(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
 
     if (isNewlyCompleted) {
+      embed.addFields({ 
+        name: '🔄 Goal Auto-Reset', 
+        value: `Your **${capitalizedCategory}** progress has been reset to \`0/0\`.\nUse \`.goal set ${category} <amount>\` to start a new track!` 
+      });
+
       notification = { 
         content: `🏆 <@${userId}> **COMPLETED** their **${category.toUpperCase()}** goal of **${Number(data.target).toLocaleString()}**! 🎉🎉`, 
         embeds: [embed] 
       };
+      
       scheduleGoalReminder(message, userId, category);
+
+      // AUTO-RESET LOGIC: Clear track layout parameters back to empty state
+      data.target = 0;
+      data.current = 0;
+      data.lastMilestone = 0;
     } else {
       notification = { 
         content: `🎉 <@${userId}> reached **${currentMilestone}** progress in **${category.toUpperCase()}**!`, 
@@ -160,7 +185,6 @@ module.exports = {
       await message.channel.send(result.notification);
     }
   },
-
   async execute(message, args) {
     try {
       const userId = message.author.id;
@@ -181,15 +205,19 @@ module.exports = {
         if (isNaN(amount) || amount < 0 || amount > 1000000) {
           return message.reply(`❌ **Error:** Target goal must be a number between 0 and 1,000,000.`);
         }
+
         const data = getOrCreateUserGoal(userId, category);
         data.target = amount;
         saveGoalsData();
+
         const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
         const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
         const progressBar = createProgressBar(data.current, data.target);
+
         const embed = new EmbedBuilder()
           .setColor(0x00AE86)
           .setDescription(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
+
         return message.reply({ embeds: [embed] });
       }
 
@@ -198,37 +226,47 @@ module.exports = {
           return message.reply('❌ **Error:** Specify a category to reset, or use `all`.\nExample: `.goal reset hunt` or `.goal reset all`');
         }
         const targetReset = args[1].toLowerCase();
+
         if (targetReset === 'all') {
           userGoals.set(userId, {});
           saveGoalsData();
           return message.reply('🔄 **Success:** All your goal tracking profiles have been completely reset to 0!');
         }
+
         if (!VALID_CATEGORIES.includes(targetReset)) {
           return message.reply('❌ **Error:** Invalid category! Pick: `Hunt`, `Battle`, `Pray`, `Curse`, `OwO`, or `all`.');
         }
+
         if (userGoals.has(userId)) {
           const userMap = userGoals.get(userId);
           userMap[targetReset] = { target: 0, current: 0, lastMilestone: 0 };
           saveGoalsData();
         }
+
         const capitalizedCategory = targetReset.charAt(0).toUpperCase() + targetReset.slice(1);
         return message.reply(`🔄 **Success:** Your **${capitalizedCategory}** goal has been reset to 0.`);
       }
 
+      // Default profile display view
       const embed = new EmbedBuilder()
         .setColor(0x00AE86)
         .setTitle(`🎯 ${message.author.username}'s Goals`);
+
       let description = '';
       const userMap = userGoals.get(userId) || {};
+
       for (const cat of VALID_CATEGORIES) {
         const data = userMap[cat] ? userMap[cat] : { current: 0, target: 0 };
         const capitalizedCategory = cat.charAt(0).toUpperCase() + cat.slice(1);
         const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
         const progressBar = createProgressBar(data.current, data.target);
+
         description += `**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}\n\n`;
       }
+
       embed.setDescription(description.trim());
       return message.reply({ embeds: [embed] });
+
     } catch (error) {
       console.error('[GOAL COMMAND ERROR]:', error);
     }

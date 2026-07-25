@@ -2,10 +2,10 @@ const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
     name: 'help',
-    // Updated parameters to match your index.js structure
+
     execute: async (message, args) => {
         try {
-            // Using the '.' prefix as you established
+
             const prefix = '.'; 
             
             const helpEmbed = new EmbedBuilder()

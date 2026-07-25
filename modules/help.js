@@ -16,7 +16,7 @@ module.exports = {
                              `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Goal Tracking:**\n` +
                              `┃ \`${prefix}goal\` — View your current progress and goals\n` +
-                             `┃ \`${prefix}goal set <number>\` — Set your target goals\n` +
+                             `┃ \`${prefix}goal set <hb/pc/owo> <number>\` — Set your target goals\n` +
                              `┃ \`${prefix}goal reset\` — Reset your current goals`;
 
             const reminderText = `### Cookie's command list\n` +

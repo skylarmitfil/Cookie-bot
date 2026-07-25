@@ -1,5 +1,3 @@
-const { EmbedBuilder } = require('discord.js');
-
 module.exports = {
     name: 'help',
 
@@ -7,17 +5,17 @@ module.exports = {
         try {
             const prefix = '.'; 
 
-            const mainText = `### ${message.client.user.username}'s command list\n` +
+            const mainText = `### Cookie's command list\n` +
                              `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Main Commands:**\n` +
                              `┃ \`${prefix}c hunt\` \`${prefix}c battle\` \`${prefix}c pray\` \`${prefix}c curse\` \`${prefix}c owo\``;
 
-            const goalText = `### ${message.client.user.username}'s command list\n` +
+            const goalText = `### Cookie's command list\n` +
                              `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Goal Tracking:**\n` +
                              `┃ \`${prefix}goal\` — View your current progress and goals`;
 
-            const reminderText = `### ${message.client.user.username}'s command list\n` +
+            const reminderText = `### Cookie's command list\n` +
                                  `[Bot Website](https://discord-cookie.com)\n\n` +
                                  `**Custom Reminders:**\n` +
                                  `┃ \`${prefix}reminder\` — View reminder settings & active alerts\n` +
@@ -39,7 +37,7 @@ module.exports = {
                             accent_color: 14430780, 
                             components: [
                                 {
-                                    type: 1, // ActionRow (Menu placed first so it appears above)
+                                    type: 1, // ActionRow (Menu placed first)
                                     components: [
                                         {
                                             type: 3, 
@@ -73,7 +71,7 @@ module.exports = {
                                     ]
                                 },
                                 {
-                                    type: 10, // TextDisplay placed below the menu
+                                    type: 10, // TextDisplay containing Cookie's command list placed below the menu
                                     content: contents[selectedKey]
                                 }
                             ]

@@ -35,15 +35,11 @@ module.exports = {
                     flags: 32768, 
                     components: [
                         {
-                            type: 17, 
+                            type: 17, // Container Component
                             accent_color: 14430780, 
                             components: [
                                 {
-                                    type: 10, 
-                                    content: contents[selectedKey]
-                                },
-                                {
-                                    type: 1, 
+                                    type: 1, // ActionRow (Menu placed first so it appears above)
                                     components: [
                                         {
                                             type: 3, 
@@ -75,6 +71,10 @@ module.exports = {
                                             ]
                                         }
                                     ]
+                                },
+                                {
+                                    type: 10, // TextDisplay placed below the menu
+                                    content: contents[selectedKey]
                                 }
                             ]
                         }

@@ -6,6 +6,9 @@ const DATA_DIR = '/app/data';
 const GOALS_FILE = path.join(DATA_DIR, 'userGoals.json');
 let userGoals = new Map();
 
+// Anti-double count cooldown cache
+const recentCounts = new Map();
+
 const VALID_CATEGORIES = ['hb', 'pc', 'owo'];
 const HUNT_TRIGGERS = ['owo hunt', 'owoh', 'owo h', 'wh', 'w h'];
 const BATTLE_TRIGGERS = ['owo battle', 'owob', 'owo b', 'wb', 'w b'];
@@ -93,6 +96,14 @@ function getCategoryDisplayName(category) {
 }
 
 function checkAndUpdateGoal(userId, category, message, triggeredBy = null) {
+  // ANTI-DOUBLE COUNT LOCK: Prevents identical increments within 2 seconds
+  const lockKey = `${userId}-${category}-${triggeredBy || 'default'}`;
+  const now = Date.now();
+  if (recentCounts.has(lockKey) && now - recentCounts.get(lockKey) < 2000) {
+    return { data: getOrCreateUserGoal(userId, category), notification: null };
+  }
+  recentCounts.set(lockKey, now);
+
   const data = getOrCreateUserGoal(userId, category);
   
   if (!data.target || data.target <= 0) {

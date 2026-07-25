@@ -44,7 +44,7 @@ module.exports = {
                                         {
                                             type: 3, 
                                             custom_id: 'help_select_menu',
-                                            placeholder: 'All basic commands',
+                                            placeholder: 'All quests list',
                                             disabled: disabled,
                                             options: [
                                                 {

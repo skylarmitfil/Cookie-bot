@@ -41,28 +41,28 @@ module.exports = {
                                         {
                                             type: 3, 
                                             custom_id: 'help_select_menu',
-                                            placeholder: 'All baisc commands',
+                                            placeholder: 'All Basic Commands',
                                             disabled: disabled,
                                             options: [
                                                 {
-                                                    label: 'All quests list',
+                                                    label: 'All Basic Commands',
                                                     description: 'View main commands list',
                                                     value: 'help_main',
-                                                    emoji: { name: '<:SS_scroll:1530199583055941674>' },
+                                                    emoji: { id: null, name: '📜' },
                                                     default: selectedKey === 'help_main'
                                                 },
                                                 {
                                                     label: 'Goal Tracking',
                                                     description: 'View progress and goal tracking commands',
                                                     value: 'help_goals',
-                                                    emoji: { name: '🎯' },
+                                                    emoji: { id: null, name: '🎯' },
                                                     default: selectedKey === 'help_goals'
                                                 },
                                                 {
                                                     label: 'Custom Reminders',
                                                     description: 'View reminder configuration commands',
                                                     value: 'help_reminders',
-                                                    emoji: { name: '⏰' },
+                                                    emoji: { id: null, name: '⏰' },
                                                     default: selectedKey === 'help_reminders'
                                                 }
                                             ]

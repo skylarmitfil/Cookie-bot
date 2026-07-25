@@ -6,7 +6,7 @@ const DATA_DIR = '/app/data';
 const GOALS_FILE = path.join(DATA_DIR, 'userGoals.json');
 let userGoals = new Map();
 
-const VALID_CATEGORIES = ['hunt', 'battle', 'pray', 'curse', 'owo'];
+const VALID_CATEGORIES = ['hb', 'pray', 'curse', 'owo'];
 const HUNT_TRIGGERS = ['owo hunt', 'owoh', 'owo h', 'wh', 'w h'];
 const BATTLE_TRIGGERS = ['owo battle', 'owob', 'owo b', 'wb', 'w b'];
 const PRAY_TRIGGERS = ['owo pray', 'w pray'];
@@ -49,7 +49,8 @@ function getOrCreateUserGoal(userId, category) {
   }
   const userMap = userGoals.get(userId);
   if (!userMap[category]) {
-    userMap[category] = { target: 0, current: 0, lastMilestone: 0 };
+    // Added 'lastCommand' to track 'hunt' vs 'battle' states
+    userMap[category] = { target: 0, current: 0, lastMilestone: 0, lastCommand: null };
     saveGoalsData();
   }
   if (userMap[category].lastMilestone === undefined) {
@@ -85,11 +86,35 @@ function createProgressBar(current, target, length = 10) {
 
   return bar;
 }
-function checkAndUpdateGoal(userId, category, message) {
+
+function getCategoryDisplayName(category) {
+  if (category === 'hb') return 'Hunt & Battle';
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
+function checkAndUpdateGoal(userId, category, message, triggeredBy = null) {
   const data = getOrCreateUserGoal(userId, category);
   
   if (!data.target || data.target <= 0) {
     return { data, notification: null };
+  }
+
+  // Combo logic for Hunt & Battle
+  if (category === 'hb' && triggeredBy) {
+    // If they run the same command twice in a row, do not grant progress, just update state
+    if (data.lastCommand === triggeredBy) {
+      return { data, notification: null };
+    }
+    
+    // Set the command they just used
+    data.lastCommand = triggeredBy;
+
+    // Only progress if they complete the cycle (e.g., they just did battle and last was hunt, or vice-versa)
+    // If lastCommand was null (first action), we don't grant a point yet until the pair completes
+    if (data.lastCommand !== null && data.current === 0 && !userGoals.get(userId).hb_started) {
+      userGoals.get(userId).hb_started = true;
+      saveGoalsData();
+      return { data, notification: null }; 
+    }
   }
 
   data.current += 1;
@@ -104,25 +129,27 @@ function checkAndUpdateGoal(userId, category, message) {
     
     const percentage = ((data.current / data.target) * 100).toFixed(1);
     const progressBar = createProgressBar(data.current, data.target);
-    const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
+    const displayName = getCategoryDisplayName(category);
 
     const embed = new EmbedBuilder()
       .setColor(0x00AE86)
-      .setDescription(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
+      .setDescription(`**Goal: ${displayName}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
 
     if (isNewlyCompleted) {
       notification = { 
-        content: `🏆 <@${userId}> **COMPLETED** their **${category.toUpperCase()}** goal of **${Number(data.target).toLocaleString()}**! 🎉🎉`, 
+        content: `🏆 <@${userId}> **COMPLETED** their **${displayName.toUpperCase()}** goal of **${Number(data.target).toLocaleString()}**! 🎉🎉`, 
         embeds: [embed] 
       };
 
-      // AUTO-RESET LOGIC: Wipe stats back to 0/0 instantly
+      // AUTO-RESET LOGIC
       data.target = 0;
       data.current = 0;
       data.lastMilestone = 0;
+      data.lastCommand = null;
+      if (userGoals.get(userId)) userGoals.get(userId).hb_started = false;
     } else {
       notification = { 
-        content: `🎉 <@${userId}> reached **${currentMilestone}** progress in **${category.toUpperCase()}**!`, 
+        content: `🎉 <@${userId}> reached **${currentMilestone}** progress in **${displayName.toUpperCase()}**!`, 
         embeds: [embed] 
       };
     }
@@ -142,9 +169,9 @@ module.exports = {
     let result = null;
 
     if (matchesTrigger(content, HUNT_TRIGGERS)) {
-      result = checkAndUpdateGoal(userId, 'hunt', message);
+      result = checkAndUpdateGoal(userId, 'hb', message, 'hunt');
     } else if (matchesTrigger(content, BATTLE_TRIGGERS)) {
-      result = checkAndUpdateGoal(userId, 'battle', message);
+      result = checkAndUpdateGoal(userId, 'hb', message, 'battle');
     } else if (matchesTrigger(content, PRAY_TRIGGERS)) {
       result = checkAndUpdateGoal(userId, 'pray', message);
     } else if (matchesTrigger(content, CURSE_TRIGGERS)) {
@@ -164,14 +191,19 @@ module.exports = {
 
       if (subCommand === 'set') {
         if (!args[1]) {
-          return message.reply('❌ **Error:** You must specify a category to set.\nExample: `.goal set hunt 5000`');
+          return message.reply('❌ **Error:** You must specify a category to set.\nExample: `.goal set hb 5000`');
         }
-        const category = args[1].toLowerCase();
+        
+        let category = args[1].toLowerCase();
+        if (category === 'hunt' || category === 'battle' || category === 'hb') {
+          category = 'hb';
+        }
+
         if (!VALID_CATEGORIES.includes(category)) {
-          return message.reply('❌ **Error:** Invalid category! Pick: `Hunt`, `Battle`, `Pray`, `Curse`, or `OwO`.');
+          return message.reply('❌ **Error:** Invalid category! Pick: `hb`, `Pray`, `Curse`, or `OwO`.');
         }
         if (!args[2]) {
-          return message.reply('❌ **Error:** You must specify a target amount.\nExample: `.goal set hunt 5000`');
+          return message.reply('❌ **Error:** You must specify a target amount.\nExample: `.goal set hb 5000`');
         }
         const amount = parseFloat(args[2].replace(/,/g, ''));
         if (isNaN(amount) || amount < 0 || amount > 1000000) {
@@ -182,24 +214,30 @@ module.exports = {
         data.target = amount;
         data.current = 0;
         data.lastMilestone = 0;
+        data.lastCommand = null; // Clean combo state
+        const userConfig = userGoals.get(userId);
+        if (userConfig) userConfig.hb_started = false;
         saveGoalsData();
 
-        const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);
+        const displayName = getCategoryDisplayName(category);
         const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
         const progressBar = createProgressBar(data.current, data.target);
 
         const embed = new EmbedBuilder()
           .setColor(0x00AE86)
-          .setDescription(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
+          .setDescription(`**Goal: ${displayName}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
 
         return message.reply({ embeds: [embed] });
       }
 
       if (subCommand === 'reset') {
         if (!args[1]) {
-          return message.reply('❌ **Error:** Specify a category to reset, or use `all`.\nExample: `.goal reset hunt` or `.goal reset all`');
+          return message.reply('❌ **Error:** Specify a category to reset, or use `all`.\nExample: `.goal reset hb` or `.goal reset all`');
         }
-        const targetReset = args[1].toLowerCase();
+        let targetReset = args[1].toLowerCase();
+        if (targetReset === 'hunt' || targetReset === 'battle') {
+          targetReset = 'hb';
+        }
 
         if (targetReset === 'all') {
           userGoals.set(userId, {});
@@ -208,20 +246,19 @@ module.exports = {
         }
 
         if (!VALID_CATEGORIES.includes(targetReset)) {
-          return message.reply('❌ **Error:** Invalid category! Pick: `Hunt`, `Battle`, `Pray`, `Curse`, `OwO`, or `all`.');
+          return message.reply('❌ **Error:** Invalid category! Pick: `hb`, `Pray`, `Curse`, `OwO`, or `all`.');
         }
 
         if (userGoals.has(userId)) {
           const userMap = userGoals.get(userId);
-          userMap[targetReset] = { target: 0, current: 0, lastMilestone: 0 };
+          userMap[targetReset] = { target: 0, current: 0, lastMilestone: 0, lastCommand: null };
           saveGoalsData();
         }
 
-        const capitalizedCategory = targetReset.charAt(0).toUpperCase() + targetReset.slice(1);
-        return message.reply(`🔄 **Success:** Your **${capitalizedCategory}** goal has been reset to 0.`);
+        const displayName = getCategoryDisplayName(targetReset);
+        return message.reply(`🔄 **Success:** Your **${displayName}** goal has been reset to 0.`);
       }
 
-      // Default profile display view
       const embed = new EmbedBuilder()
         .setColor(0x00AE86)
         .setTitle(`🎯 ${message.author.username}'s Goals`);
@@ -231,11 +268,11 @@ module.exports = {
 
       for (const cat of VALID_CATEGORIES) {
         const data = userMap[cat] ? userMap[cat] : { current: 0, target: 0 };
-        const capitalizedCategory = cat.charAt(0).toUpperCase() + cat.slice(1);
+        const displayName = getCategoryDisplayName(cat);
         const percentage = data.target > 0 ? ((data.current / data.target) * 100).toFixed(1) : '0.0';
         const progressBar = createProgressBar(data.current, data.target);
 
-        description += `**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}\n\n`;
+        description += `**Goal: ${displayName}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}\n\n`;
       }
 
       embed.setDescription(description.trim());
@@ -246,3 +283,4 @@ module.exports = {
     }
   }
 };
+

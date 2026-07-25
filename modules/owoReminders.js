@@ -114,7 +114,6 @@ module.exports = {
 
       const newTimer = setTimeout(async () => {
         try {
-          // Check if user has a custom reminder message saved in reminders.js cache
           let alertMessage = alertTemplate(emoji);
           if (reminderModule && reminderModule.userReminderMsgs) {
             const userMsgs = reminderModule.userReminderMsgs.get(userId);
@@ -137,9 +136,6 @@ module.exports = {
           if (useReply && message.channel && typeof message.channel.send === 'function') {
             sentMessage = await message.reply(reminderText);
           } else if (message.channel && typeof message.channel.send === 'function') {
-            if (!useReply && usePing) {
-              reminderText = `${user.toString()} ${alertMessage}`; // Fixed spacing so ping and custom text don't glue together
-            }
             sentMessage = await message.channel.send(reminderText);
           }
 
@@ -164,10 +160,6 @@ module.exports = {
       activeTimers.set(timerKey, newTimer);
 
     } catch (error) {
-      console.error('OwO reminder execution error:', error);
-    }
-  }
-};
       console.error('OwO reminder execution error:', error);
     }
   }

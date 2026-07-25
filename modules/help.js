@@ -52,7 +52,7 @@ module.exports = {
                                                     label: 'All quests list',
                                                     description: 'View main commands list',
                                                     value: 'help_main',
-                                                    emoji: { name: '📜' },
+                                                    emoji: { name: '<:SS_scroll:1530199583055941674>' },
                                                     default: selectedKey === 'help_main'
                                                 },
                                                 {

@@ -43,7 +43,7 @@ module.exports = {
                                             disabled: disabled,
                                             options: [
                                                 {
-                                                    label: 'All quests list',
+                                                    label: 'basic commands',
                                                     description: 'View main commands list',
                                                     value: 'help_main',
                                                     emoji: { name: '📜' },

@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,74 +11,72 @@ const client = new Client({
   ]
 });
 
-client.modules = new Collection();
-client.commands = new Collection();
+client.modules = new Map();
 
-// Load Modules Directory
-const modulesPath = path.join(__dirname, 'modules');
+// Load Modules Directory (supports your existing flat file structure)
+const modulesPath = path.resolve(__dirname, 'modules');
 if (fs.existsSync(modulesPath)) {
-  const moduleFolders = fs.readdirSync(modulesPath);
-  for (const folder of moduleFolders) {
-    const modulePath = path.join(modulesPath, folder, `${folder}.js`);
-    if (fs.existsSync(modulePath)) {
+  fs.readdirSync(modulesPath)
+    .filter(file => file.endsWith('.js'))
+    .forEach(file => {
       try {
-        const mod = require(modulePath);
-        if (mod.name) {
-          client.modules.set(mod.name, mod);
-          console.log(`[MODULE] Loaded: ${mod.name}`);
+        const mod = require(path.join(modulesPath, file));
+        if (mod && mod.name) {
+          client.modules.set(mod.name.toLowerCase(), mod);
+          if (typeof mod.init === 'function') {
+            mod.init(client);
+          }
+          console.log(`📦 Loaded: ${mod.name}`);
         }
-      } catch (error) {
-        console.error(`[MODULE ERROR] Failed to load module ${folder}:`, error);
+      } catch (err) {
+        console.error(`📦⛔️ Failed to load ${file}:`, err);
       }
-    }
-  }
+    });
 }
 
-client.once('ready', () => {
-  console.log(`[READY] Logged in as ${client.user.tag}!`);
+// Updated to use Events.ClientReady to clear the deprecation warning
+client.once(Events.ClientReady, () => {
+  console.log(`<Active> Logged in as ${client.user.tag}`);
 });
 
-client.on('messageCreate', async message => {
-  // Ignore normal bot messages to avoid loops, but allow your text prefixes/OwO tracking
-  if (message.author.bot && message.author.id === client.user.id) return;
+client.on(Events.MessageCreate, async (message) => {
+  if (!message || message.author?.bot) return;
 
-  const prefix = '.'; // Adjust your text prefix if needed
+  const prefix = '.';
+  const content = message.content.trim();
 
-  // 1. Pass message to the OwO reminder system
+  // 1. Pass message to OwO reminders
   const reminderMod = client.modules.get('oworeminders');
   if (reminderMod && typeof reminderMod.execute === 'function') {
-    try {
-      await reminderMod.execute(message);
-    } catch (err) {
-      console.error('[REMINDER ERROR]:', err);
-    }
+    reminderMod.execute(message).catch(err => {
+      console.error('[PASSIVE MODULE ERROR] owoReminders failure:', err);
+    });
   }
 
-  // 2. Pass message to the Goal tracking system
+  // 2. Pass message to Goal counter
   const goalMod = client.modules.get('goal');
   if (goalMod && typeof goalMod.handleMessage === 'function') {
-    try {
-      await goalMod.handleMessage(message);
-    } catch (err) {
-      console.error('[GOAL HANDLER ERROR]:', err);
-    }
+    goalMod.handleMessage(message).catch(err => {
+      console.error('[PASSIVE MODULE ERROR] Goal counter failure:', err);
+    });
   }
 
-  // 3. Standard text command execution handling
-  if (!message.content.startsWith(prefix) || message.author.bot) return;
+  // 3. Command prefix router
+  if (!content.startsWith(prefix)) return;
 
-  const args = message.content.slice(prefix.length).trim().split(/ +/);
+  const args = content.slice(prefix.length).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();
 
-  const commandModule = client.modules.get(commandName);
-  if (commandModule && typeof commandModule.execute === 'function') {
+  if (commandName === 'oworeminders') return;
+
+  if (client.modules.has(commandName)) {
     try {
-      await commandModule.execute(message, args);
-    } catch (error) {
-      console.error(`[COMMAND ERROR] Failed to execute ${commandName}:`, error);
-      await message.reply('❌ There was an error executing that command.');
+      await client.modules.get(commandName).execute(message, args);
+    } catch (err) {
+      console.error(`[COMMAND ERROR] Failure executing standard command ${commandName}:`, err);
+      message.reply('There was an error executing that command.').catch(() => {});
     }
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN || process.env.TOKEN);

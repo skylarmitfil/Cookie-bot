@@ -18,8 +18,7 @@ module.exports = {
                     `[Bot Website](https://discord-cookie.com)\n\n` +
                     `**Main Commands:**\n` +
                     `┃ \`${prefix}c hunt\` \`${prefix}c battle\` \`${prefix}c pray\` \`${prefix}c curse\` \`${prefix}c owo\``
-                )
-                .setFooter({ text: 'Select a category from the dropdown menu below.' });
+                );
 
             const goalEmbed = new EmbedBuilder()
                 .setColor('#DC143C') 
@@ -31,8 +30,7 @@ module.exports = {
                     `[Bot Website](https://discord-cookie.com)\n\n` +
                     `**Goal Tracking:**\n` +
                     `┃ \`${prefix}goal\` — View your current progress and goals`
-                )
-                .setFooter({ text: 'Select a category from the dropdown menu below.' });
+                );
 
             const reminderEmbed = new EmbedBuilder()
                 .setColor('#DC143C') 
@@ -46,8 +44,7 @@ module.exports = {
                     `┃ \`${prefix}reminder\` — View reminder settings & active alerts\n` +
                     `┃ \`${prefix}reminder msg <hb/pc/owo> <text>\` — Set custom alert text\n` +
                     `┃ \`${prefix}reminder reset <hb/pc/owo/all>\` — Reset custom alert text`
-                )
-                .setFooter({ text: 'Select a category from the dropdown menu below.' });
+                );
 
             const embeds = {
                 help_main: mainEmbed,
@@ -55,19 +52,19 @@ module.exports = {
                 help_reminders: reminderEmbed
             };
 
-            // Create select menu component
+            // Create the select menu component matching your screenshot style
             const createMenu = (disabled = false) => {
                 return new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId('help_select_menu')
-                        .setPlaceholder('📂 Choose a command category...')
+                        .setPlaceholder('All quests list') // Matches your style placeholder
                         .setDisabled(disabled)
                         .addOptions([
                             {
                                 label: 'Main Commands',
                                 description: 'View primary OwO action commands',
                                 value: 'help_main',
-                                emoji: '🏠'
+                                emoji: '📜'
                             },
                             {
                                 label: 'Goal Tracking',

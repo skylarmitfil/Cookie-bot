@@ -1,19 +1,25 @@
 module.exports = {
     name: 'help',
 
+module.exports = {
+    name: 'help',
+
     execute: async (message, args) => {
         try {
             const prefix = '.'; 
 
-            const mainText = `[Bot Website](https://discord-cookie.com)\n\n` +
+            const mainText = `────────────────────────\n\n` +
+                             `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Main Commands:**\n` +
                              `┃ \`${prefix}c hunt\` \`${prefix}c battle\` \`${prefix}c pray\` \`${prefix}c curse\` \`${prefix}c owo\``;
 
-            const goalText = `[Bot Website](https://discord-cookie.com)\n\n` +
+            const goalText = `────────────────────────\n\n` +
+                             `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Goal Tracking:**\n` +
                              `┃ \`${prefix}goal\` — View your current progress and goals`;
 
-            const reminderText = `[Bot Website](https://discord-cookie.com)\n\n` +
+            const reminderText = `────────────────────────\n\n` +
+                                 `[Bot Website](https://discord-cookie.com)\n\n` +
                                  `**Custom Reminders:**\n` +
                                  `┃ \`${prefix}reminder\` — View reminder settings & active alerts\n` +
                                  `┃ \`${prefix}reminder msg <hb/pc/owo> <text>\` — Set custom alert text\n` +
@@ -39,11 +45,11 @@ module.exports = {
                                         {
                                             type: 3, 
                                             custom_id: 'help_select_menu',
-                                            placeholder: 'All quests list',
+                                            placeholder: 'All basic commands',
                                             disabled: disabled,
                                             options: [
                                                 {
-                                                    label: 'basic commands',
+                                                    label: 'All quests list',
                                                     description: 'View main commands list',
                                                     value: 'help_main',
                                                     emoji: { name: '📜' },

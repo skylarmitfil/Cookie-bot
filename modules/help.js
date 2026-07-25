@@ -59,7 +59,7 @@ module.exports = {
                         .setDisabled(disabled)
                         .addOptions([
                             {
-                                label: 'All quests list',
+                                label: 'Alll commands',
                                 description: 'View main commands list',
                                 value: 'help_main',
                                 emoji: '📜'

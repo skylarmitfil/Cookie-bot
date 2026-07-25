@@ -6,8 +6,9 @@ const DATA_DIR = '/app/data';
 const GOALS_FILE = path.join(DATA_DIR, 'userGoals.json');
 let userGoals = new Map();
 
-// Anti-double count cooldown cache
+// Anti-double count and quick-fire cooldown caches
 const recentCounts = new Map();
+const hbCooldowns = new Map();
 
 const VALID_CATEGORIES = ['hb', 'pc', 'owo'];
 const HUNT_TRIGGERS = ['owo hunt', 'owoh', 'owo h', 'wh', 'w h'];
@@ -96,7 +97,17 @@ function getCategoryDisplayName(category) {
 }
 
 function checkAndUpdateGoal(userId, category, message, triggeredBy = null) {
-  // ANTI-DOUBLE COUNT LOCK: Prevents identical increments within 2 seconds
+  // BACK-TO-BACK / QUICK-FIRE DEBOUNCE FOR HUNT/BATTLE
+  if (category === 'hb') {
+    const now = Date.now();
+    const lastTime = hbCooldowns.get(userId) || 0;
+    if (now - lastTime < 3000) {
+      return { data: getOrCreateUserGoal(userId, category), notification: null };
+    }
+    hbCooldowns.set(userId, now);
+  }
+
+  // GENERAL ANTI-DOUBLE COUNT LOCK
   const lockKey = `${userId}-${category}-${triggeredBy || 'default'}`;
   const now = Date.now();
   if (recentCounts.has(lockKey) && now - recentCounts.get(lockKey) < 2000) {
@@ -108,22 +119,6 @@ function checkAndUpdateGoal(userId, category, message, triggeredBy = null) {
   
   if (!data.target || data.target <= 0) {
     return { data, notification: null };
-  }
-
-  // Combo logic for Hunt/Battle (hb) or Pray/Curse (pc)
-  if ((category === 'hb' || category === 'pc') && triggeredBy) {
-    if (data.lastCommand === triggeredBy) {
-      return { data, notification: null };
-    }
-    
-    data.lastCommand = triggeredBy;
-
-    const stateKey = `${category}_started`;
-    if (data.lastCommand !== null && data.current === 0 && !userGoals.get(userId)[stateKey]) {
-      userGoals.get(userId)[stateKey] = true;
-      saveGoalsData();
-      return { data, notification: null }; 
-    }
   }
 
   data.current += 1;
@@ -180,10 +175,11 @@ module.exports = {
     const userId = message.author.id;
     let result = null;
 
-    if (matchesTrigger(content, HUNT_TRIGGERS)) {
-      result = checkAndUpdateGoal(userId, 'hb', message, 'hunt');
-    } else if (matchesTrigger(content, BATTLE_TRIGGERS)) {
-      result = checkAndUpdateGoal(userId, 'hb', message, 'battle');
+    const hasHunt = matchesTrigger(content, HUNT_TRIGGERS);
+    const hasBattle = matchesTrigger(content, BATTLE_TRIGGERS);
+
+    if (hasHunt || hasBattle) {
+      result = checkAndUpdateGoal(userId, 'hb', message, 'combined');
     } else if (matchesTrigger(content, PRAY_TRIGGERS)) {
       result = checkAndUpdateGoal(userId, 'pc', message, 'pray');
     } else if (matchesTrigger(content, CURSE_TRIGGERS)) {

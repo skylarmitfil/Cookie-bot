@@ -83,6 +83,7 @@ module.exports = {
     try {
       const { settingKey, cooldown, emoji, alertTemplate } = matchedCommand;
       const prefsModule = message.client?.modules?.get('c');
+      const reminderModule = message.client?.modules?.get('reminder');
 
       let isEnabled = true;
       let usePing = true;
@@ -113,7 +114,15 @@ module.exports = {
 
       const newTimer = setTimeout(async () => {
         try {
-          const alertMessage = alertTemplate(emoji);
+          // Check if user has a custom reminder message saved in reminders.js cache
+          let alertMessage = alertTemplate(emoji);
+          if (reminderModule && reminderModule.userReminderMsgs) {
+            const userMsgs = reminderModule.userReminderMsgs.get(userId);
+            if (userMsgs && userMsgs[settingKey]) {
+              alertMessage = userMsgs[settingKey];
+            }
+          }
+
           const user = await message.client.users.fetch(userId);
           if (!user) return;
 
@@ -129,7 +138,7 @@ module.exports = {
             sentMessage = await message.reply(reminderText);
           } else if (message.channel && typeof message.channel.send === 'function') {
             if (!useReply && usePing) {
-              reminderText = `${user.toString()}`;
+              reminderText = `${user.toString()} ${alertMessage}`; // Fixed spacing so ping and custom text don't glue together
             }
             sentMessage = await message.channel.send(reminderText);
           }
@@ -155,6 +164,10 @@ module.exports = {
       activeTimers.set(timerKey, newTimer);
 
     } catch (error) {
+      console.error('OwO reminder execution error:', error);
+    }
+  }
+};
       console.error('OwO reminder execution error:', error);
     }
   }

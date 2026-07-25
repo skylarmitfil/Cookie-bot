@@ -85,27 +85,6 @@ function createProgressBar(current, target, length = 10) {
 
   return bar;
 }
-
-function scheduleGoalReminder(message, userId, category) {
-  let cooldownTime = 15000;
-  if (category === 'pray' || category === 'curse') {
-    cooldownTime = 5 * 60 * 1000;
-  }
-  setTimeout(async () => {
-    try {
-      const channel = message.channel;
-      if (channel) {
-        const reminderEmbed = new EmbedBuilder()
-          .setColor(0x00AE86)
-          .setDescription(`⏰ **Reminder:** Your completed **${category.toUpperCase()}** cycle cooldown is over! You can start a new goal now.`);
-        const notificationMsg = await channel.send({ content: `🔔 <@${userId}>, your goal reminder is up!`, embeds: [reminderEmbed] });
-        setTimeout(() => notificationMsg.delete().catch(() => {}), 5000);
-      }
-    } catch (err) {
-      console.error('[REMINDER SYSTEM ERROR]:', err.message);
-    }
-  }, cooldownTime);
-}
 function checkAndUpdateGoal(userId, category, message) {
   const data = getOrCreateUserGoal(userId, category);
   
@@ -132,19 +111,12 @@ function checkAndUpdateGoal(userId, category, message) {
       .setDescription(`**Goal: ${capitalizedCategory}** 🎯 target \`${Number(data.current).toLocaleString()}/${Number(data.target).toLocaleString()}\` (${percentage}%)\n${progressBar}`);
 
     if (isNewlyCompleted) {
-      embed.addFields({ 
-        name: '🔄 Goal Auto-Reset', 
-        value: `Your **${capitalizedCategory}** progress has been reset to \`0/0\`.\nUse \`.goal set ${category} <amount>\` to start a new track!` 
-      });
-
       notification = { 
         content: `🏆 <@${userId}> **COMPLETED** their **${category.toUpperCase()}** goal of **${Number(data.target).toLocaleString()}**! 🎉🎉`, 
         embeds: [embed] 
       };
-      
-      scheduleGoalReminder(message, userId, category);
 
-      // AUTO-RESET LOGIC: Clear track layout parameters back to empty state
+      // AUTO-RESET LOGIC: Wipe stats back to 0/0 instantly
       data.target = 0;
       data.current = 0;
       data.lastMilestone = 0;
@@ -208,6 +180,8 @@ module.exports = {
 
         const data = getOrCreateUserGoal(userId, category);
         data.target = amount;
+        data.current = 0;
+        data.lastMilestone = 0;
         saveGoalsData();
 
         const capitalizedCategory = category.charAt(0).toUpperCase() + category.slice(1);

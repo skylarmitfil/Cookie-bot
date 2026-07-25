@@ -17,7 +17,7 @@ module.exports = {
                              `**Goal Tracking:**\n` +
                              `┃ \`${prefix}goal\` — View your current progress and goals\n` +
                              `┃ \`${prefix}goal set <hb/pc/owo> <number>\` — Set your target goals\n` +
-                             `┃ \`${prefix}goal reset\` — Reset your current goals`;
+                             `┃ \`${prefix}goal reset <hb/pc/owo/all>\` — Reset your current goals`;
 
             const reminderText = `### Cookie's command list\n` +
                                  `[Bot Website](https://discord-cookie.com)\n\n` +

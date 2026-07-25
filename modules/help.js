@@ -7,7 +7,6 @@ module.exports = {
         try {
             const prefix = '.'; 
 
-            // Define the different pages/embeds
             const mainEmbed = new EmbedBuilder()
                 .setColor('#DC143C') 
                 .setAuthor({ 
@@ -52,17 +51,16 @@ module.exports = {
                 help_reminders: reminderEmbed
             };
 
-            // Create the select menu component matching your screenshot style
             const createMenu = (disabled = false) => {
                 return new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId('help_select_menu')
-                        .setPlaceholder('All quests list') // Matches your style placeholder
+                        .setPlaceholder('All quests list')
                         .setDisabled(disabled)
                         .addOptions([
                             {
-                                label: 'Main Commands',
-                                description: 'View primary OwO action commands',
+                                label: 'All quests list',
+                                description: 'View main commands list',
                                 value: 'help_main',
                                 emoji: '📜'
                             },
@@ -87,13 +85,11 @@ module.exports = {
                 components: [createMenu()] 
             });
 
-            // Create a collector for component interactions (lasts for 2 minutes)
             const collector = initialMessage.createMessageComponentCollector({ 
                 time: 120000 
             });
 
             collector.on('collect', async (interaction) => {
-                // Ensure only the user who typed the command can use the menu
                 if (interaction.user.id !== message.author.id) {
                     return interaction.reply({ content: '❌ This menu is not for you!', ephemeral: true });
                 }
@@ -109,11 +105,8 @@ module.exports = {
 
             collector.on('end', async () => {
                 try {
-                    // Disable select menu after timeout
                     await initialMessage.edit({ components: [createMenu(true)] });
-                } catch (err) {
-                    // Ignore errors if message was deleted
-                }
+                } catch (err) {}
             });
 
         } catch (error) {

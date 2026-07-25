@@ -5,7 +5,6 @@ module.exports = {
 
     execute: async (message, args) => {
         try {
-
             const prefix = '.'; 
             
             const helpEmbed = new EmbedBuilder()
@@ -16,8 +15,14 @@ module.exports = {
                 })
                 .setDescription(
                     `[Bot Website](https://discord-cookie.com)\n\n` +
-                    `**Main commands:**\n` +
-                    `┃ \`${prefix}c hunt\` \`${prefix}c pray\` \`${prefix}c owo\``
+                    `**Main Commands:**\n` +
+                    `┃ \`${prefix}c hunt\` \`${prefix}c battle\` \`${prefix}c pray\` \`${prefix}c curse\` \`${prefix}c owo\`\n\n` +
+                    `**Goal Tracking:**\n` +
+                    `┃ \`${prefix}goal\` — View your current progress and goals\n\n` +
+                    `**Custom Reminders:**\n` +
+                    `┃ \`${prefix}reminder\` — View reminder settings & active alerts\n` +
+                    `┃ \`${prefix}reminder msg <hb/pc/owo> <text>\` — Set custom alert text\n` +
+                    `┃ \`${prefix}reminder reset <hb/pc/owo/all>\` — Reset custom alert text`
                 );
 
             await message.channel.send({ embeds: [helpEmbed] });

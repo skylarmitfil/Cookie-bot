@@ -9,7 +9,7 @@ module.exports = {
 
             const mainText = `### Cookie's command list\n` +
                              `[Bot Website](https://discord-cookie.com)\n\n` +
-                             `**Main Commands:**\n` +
+                             `**Basic Commands:**\n` +
                              `┃ \`${prefix}c hunt\` \`${prefix}c battle\` \`${prefix}c pray\` \`${prefix}c curse\` \`${prefix}c owo\``;
 
             const goalText = `### Cookie's command list\n` +

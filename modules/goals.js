@@ -6,7 +6,7 @@ const DATA_DIR = '/app/data';
 const GOALS_FILE = path.join(DATA_DIR, 'userGoals.json');
 let userGoals = new Map();
 
-const VALID_CATEGORIES = ['hb', 'pray', 'curse', 'owo'];
+const VALID_CATEGORIES = ['hb', 'pc', 'owo'];
 const HUNT_TRIGGERS = ['owo hunt', 'owoh', 'owo h', 'wh', 'w h'];
 const BATTLE_TRIGGERS = ['owo battle', 'owob', 'owo b', 'wb', 'w b'];
 const PRAY_TRIGGERS = ['owo pray', 'w pray'];
@@ -49,7 +49,6 @@ function getOrCreateUserGoal(userId, category) {
   }
   const userMap = userGoals.get(userId);
   if (!userMap[category]) {
-    // Added 'lastCommand' to track 'hunt' vs 'battle' states
     userMap[category] = { target: 0, current: 0, lastMilestone: 0, lastCommand: null };
     saveGoalsData();
   }
@@ -88,7 +87,8 @@ function createProgressBar(current, target, length = 10) {
 }
 
 function getCategoryDisplayName(category) {
-  if (category === 'hb') return 'Hunt & Battle';
+  if (category === 'hb') return 'Hunt/Battle';
+  if (category === 'pc') return 'Pray/Curse';
   return category.charAt(0).toUpperCase() + category.slice(1);
 }
 function checkAndUpdateGoal(userId, category, message, triggeredBy = null) {
@@ -98,20 +98,17 @@ function checkAndUpdateGoal(userId, category, message, triggeredBy = null) {
     return { data, notification: null };
   }
 
-  // Combo logic for Hunt & Battle
-  if (category === 'hb' && triggeredBy) {
-    // If they run the same command twice in a row, do not grant progress, just update state
+  // Combo logic for Hunt/Battle (hb) or Pray/Curse (pc)
+  if ((category === 'hb' || category === 'pc') && triggeredBy) {
     if (data.lastCommand === triggeredBy) {
       return { data, notification: null };
     }
     
-    // Set the command they just used
     data.lastCommand = triggeredBy;
 
-    // Only progress if they complete the cycle (e.g., they just did battle and last was hunt, or vice-versa)
-    // If lastCommand was null (first action), we don't grant a point yet until the pair completes
-    if (data.lastCommand !== null && data.current === 0 && !userGoals.get(userId).hb_started) {
-      userGoals.get(userId).hb_started = true;
+    const stateKey = `${category}_started`;
+    if (data.lastCommand !== null && data.current === 0 && !userGoals.get(userId)[stateKey]) {
+      userGoals.get(userId)[stateKey] = true;
       saveGoalsData();
       return { data, notification: null }; 
     }
@@ -146,7 +143,10 @@ function checkAndUpdateGoal(userId, category, message, triggeredBy = null) {
       data.current = 0;
       data.lastMilestone = 0;
       data.lastCommand = null;
-      if (userGoals.get(userId)) userGoals.get(userId).hb_started = false;
+      if (userGoals.get(userId)) {
+        userGoals.get(userId).hb_started = false;
+        userGoals.get(userId).pc_started = false;
+      }
     } else {
       notification = { 
         content: `🎉 <@${userId}> reached **${currentMilestone}** progress in **${displayName.toUpperCase()}**!`, 
@@ -173,9 +173,9 @@ module.exports = {
     } else if (matchesTrigger(content, BATTLE_TRIGGERS)) {
       result = checkAndUpdateGoal(userId, 'hb', message, 'battle');
     } else if (matchesTrigger(content, PRAY_TRIGGERS)) {
-      result = checkAndUpdateGoal(userId, 'pray', message);
+      result = checkAndUpdateGoal(userId, 'pc', message, 'pray');
     } else if (matchesTrigger(content, CURSE_TRIGGERS)) {
-      result = checkAndUpdateGoal(userId, 'curse', message);
+      result = checkAndUpdateGoal(userId, 'pc', message, 'curse');
     } else if (matchesTrigger(content, OWO_TRIGGERS)) {
       result = checkAndUpdateGoal(userId, 'owo', message);
     }
@@ -191,16 +191,15 @@ module.exports = {
 
       if (subCommand === 'set') {
         if (!args[1]) {
-          return message.reply('❌ **Error:** You must specify a category to set.\nExample: `.goal set hb 5000`');
+          return message.reply('❌ **Error:** You must specify a category to set.\nExample: `.goal set hb 5000` or `.goal set pc 100`');
         }
         
         let category = args[1].toLowerCase();
-        if (category === 'hunt' || category === 'battle' || category === 'hb') {
-          category = 'hb';
-        }
+        if (category === 'hunt' || category === 'battle' || category === 'hb') category = 'hb';
+        if (category === 'pray' || category === 'curse' || category === 'pc') category = 'pc';
 
         if (!VALID_CATEGORIES.includes(category)) {
-          return message.reply('❌ **Error:** Invalid category! Pick: `hb`, `Pray`, `Curse`, or `OwO`.');
+          return message.reply('❌ **Error:** Invalid category! Pick: `hb`, `pc`, or `OwO`.');
         }
         if (!args[2]) {
           return message.reply('❌ **Error:** You must specify a target amount.\nExample: `.goal set hb 5000`');
@@ -214,9 +213,9 @@ module.exports = {
         data.target = amount;
         data.current = 0;
         data.lastMilestone = 0;
-        data.lastCommand = null; // Clean combo state
+        data.lastCommand = null;
         const userConfig = userGoals.get(userId);
-        if (userConfig) userConfig.hb_started = false;
+        if (userConfig) userConfig[`${category}_started`] = false;
         saveGoalsData();
 
         const displayName = getCategoryDisplayName(category);
@@ -235,9 +234,8 @@ module.exports = {
           return message.reply('❌ **Error:** Specify a category to reset, or use `all`.\nExample: `.goal reset hb` or `.goal reset all`');
         }
         let targetReset = args[1].toLowerCase();
-        if (targetReset === 'hunt' || targetReset === 'battle') {
-          targetReset = 'hb';
-        }
+        if (targetReset === 'hunt' || targetReset === 'battle') targetReset = 'hb';
+        if (targetReset === 'pray' || targetReset === 'curse') targetReset = 'pc';
 
         if (targetReset === 'all') {
           userGoals.set(userId, {});
@@ -246,7 +244,7 @@ module.exports = {
         }
 
         if (!VALID_CATEGORIES.includes(targetReset)) {
-          return message.reply('❌ **Error:** Invalid category! Pick: `hb`, `Pray`, `Curse`, `OwO`, or `all`.');
+          return message.reply('❌ **Error:** Invalid category! Pick: `hb`, `pc`, `OwO`, or `all`.');
         }
 
         if (userGoals.has(userId)) {
@@ -283,4 +281,3 @@ module.exports = {
     }
   }
 };
-

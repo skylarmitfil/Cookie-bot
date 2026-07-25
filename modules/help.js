@@ -7,15 +7,18 @@ module.exports = {
         try {
             const prefix = '.'; 
 
-            const mainText = `[Bot Website](https://discord-cookie.com)\n\n` +
+            const mainText = `### ${message.client.user.username}'s command list\n` +
+                             `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Main Commands:**\n` +
                              `┃ \`${prefix}c hunt\` \`${prefix}c battle\` \`${prefix}c pray\` \`${prefix}c curse\` \`${prefix}c owo\``;
 
-            const goalText = `[Bot Website](https://discord-cookie.com)\n\n` +
+            const goalText = `### ${message.client.user.username}'s command list\n` +
+                             `[Bot Website](https://discord-cookie.com)\n\n` +
                              `**Goal Tracking:**\n` +
                              `┃ \`${prefix}goal\` — View your current progress and goals`;
 
-            const reminderText = `[Bot Website](https://discord-cookie.com)\n\n` +
+            const reminderText = `### ${message.client.user.username}'s command list\n` +
+                                 `[Bot Website](https://discord-cookie.com)\n\n` +
                                  `**Custom Reminders:**\n` +
                                  `┃ \`${prefix}reminder\` — View reminder settings & active alerts\n` +
                                  `┃ \`${prefix}reminder msg <hb/pc/owo> <text>\` — Set custom alert text\n` +
@@ -27,48 +30,49 @@ module.exports = {
                 help_reminders: reminderText
             };
 
-            // V2 Container Layout Payload using raw component blocks
-            const buildPayload = (selectedKey = 'help_main', disabled = false) => {
+            const buildV2Payload = (selectedKey = 'help_main', disabled = false) => {
                 return {
-                    embeds: [
-                        new EmbedBuilder()
-                            .setColor('#DC143C')
-                            .setAuthor({ 
-                                name: `${message.client.user.username}'s command list`, 
-                                iconURL: message.client.user.displayAvatarURL() 
-                            })
-                            .setDescription(contents[selectedKey])
-                    ],
+                    flags: 32768, 
                     components: [
                         {
-                            type: 1, // ActionRow
+                            type: 17, 
+                            accent_color: 14430780, 
                             components: [
                                 {
-                                    type: 3, // String Select Menu
-                                    custom_id: 'help_select_menu',
-                                    placeholder: 'All quests list',
-                                    disabled: disabled,
-                                    options: [
+                                    type: 10, 
+                                    content: contents[selectedKey]
+                                },
+                                {
+                                    type: 1, 
+                                    components: [
                                         {
-                                            label: 'All quests list',
-                                            description: 'View main commands list',
-                                            value: 'help_main',
-                                            emoji: { name: '📜' },
-                                            default: selectedKey === 'help_main'
-                                        },
-                                        {
-                                            label: 'Goal Tracking',
-                                            description: 'View progress and goal tracking commands',
-                                            value: 'help_goals',
-                                            emoji: { name: '🎯' },
-                                            default: selectedKey === 'help_goals'
-                                        },
-                                        {
-                                            label: 'Custom Reminders',
-                                            description: 'View reminder configuration commands',
-                                            value: 'help_reminders',
-                                            emoji: { name: '⏰' },
-                                            default: selectedKey === 'help_reminders'
+                                            type: 3, 
+                                            custom_id: 'help_select_menu',
+                                            placeholder: 'All quests list',
+                                            disabled: disabled,
+                                            options: [
+                                                {
+                                                    label: 'All quests list',
+                                                    description: 'View main commands list',
+                                                    value: 'help_main',
+                                                    emoji: { name: '📜' },
+                                                    default: selectedKey === 'help_main'
+                                                },
+                                                {
+                                                    label: 'Goal Tracking',
+                                                    description: 'View progress and goal tracking commands',
+                                                    value: 'help_goals',
+                                                    emoji: { name: '🎯' },
+                                                    default: selectedKey === 'help_goals'
+                                                },
+                                                {
+                                                    label: 'Custom Reminders',
+                                                    description: 'View reminder configuration commands',
+                                                    value: 'help_reminders',
+                                                    emoji: { name: '⏰' },
+                                                    default: selectedKey === 'help_reminders'
+                                                }
+                                            ]
                                         }
                                     ]
                                 }
@@ -78,7 +82,7 @@ module.exports = {
                 };
             };
 
-            const initialMessage = await message.channel.send(buildPayload('help_main', false));
+            const initialMessage = await message.channel.send(buildV2Payload('help_main', false));
 
             const collector = initialMessage.createMessageComponentCollector({ 
                 time: 120000 
@@ -90,12 +94,12 @@ module.exports = {
                 }
 
                 const selectedValue = interaction.values[0];
-                await interaction.update(buildPayload(selectedValue, false));
+                await interaction.update(buildV2Payload(selectedValue, false));
             });
 
             collector.on('end', async () => {
                 try {
-                    await initialMessage.edit(buildPayload('help_main', true));
+                    await initialMessage.edit(buildV2Payload('help_main', true));
                 } catch (err) {}
             });
 

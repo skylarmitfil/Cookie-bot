@@ -34,11 +34,58 @@ if (fs.existsSync(modulesPath)) {
     });
 }
 
-// Updated to use Events.ClientReady to clear the deprecation warning
-client.once(Events.ClientReady, () => {
+client.once(Events.ClientReady, async () => {
   console.log(`<Active> Logged in as ${client.user.tag}`);
+
+  try {
+    const guildId = '1518659728677277826'; // Your specific server ID
+    const guild = await client.guilds.fetch(guildId);
+
+    if (guild) {
+      // Register only the correct /reminder command instantly to your guild and clear out old ghost commands
+      await guild.commands.set([
+        {
+          name: 'reminder',
+          description: 'Manage custom OwO reminder settings'
+        }
+      ]);
+      console.log('✨ Successfully registered /reminder to your guild and cleared old ghost commands.');
+    }
+  } catch (err) {
+    console.error('Failed to register guild commands:', err);
+  }
 });
 
+// Slash Command Router
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName === 'reminder') {
+    const reminderMod = client.modules.get('reminder');
+    if (reminderMod && typeof reminderMod.execute === 'function') {
+      // Create a mock message object wrapper so reminderMod.execute works seamlessly with slash commands
+      const mockMessage = {
+        author: interaction.user,
+        client: interaction.client,
+        channel: interaction.channel,
+        guild: interaction.guild,
+        reply: async (options) => {
+          if (interaction.replied || interaction.deferred) {
+            return interaction.followUp(options);
+          }
+          return interaction.reply(options);
+        }
+      };
+
+      // Pass empty args or extract options if subcommands are added later
+      await reminderMod.execute(mockMessage, []);
+    } else {
+      await interaction.reply({ content: '❌ Reminder module is not loaded correctly.', ephemeral: true });
+    }
+  }
+});
+
+// Text Prefix Message Router
 client.on(Events.MessageCreate, async (message) => {
   if (!message || message.author?.bot) return;
 
@@ -53,15 +100,7 @@ client.on(Events.MessageCreate, async (message) => {
     });
   }
 
-  // 2. Pass message to Goal counter
-  const goalMod = client.modules.get('goal');
-  if (goalMod && typeof goalMod.handleMessage === 'function') {
-    goalMod.handleMessage(message).catch(err => {
-      console.error('[PASSIVE MODULE ERROR] Goal counter failure:', err);
-    });
-  }
-
-  // 3. Command prefix router
+  // 2. Command prefix router
   if (!content.startsWith(prefix)) return;
 
   const args = content.slice(prefix.length).trim().split(/ +/);

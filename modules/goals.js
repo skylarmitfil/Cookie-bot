@@ -141,7 +141,7 @@ function checkAndUpdateGoal(userId, category, message, triggeredBy = null) {
 
     if (isNewlyCompleted) {
       notification = { 
-        content: `🏆 <@${userId}> **COMPLETED** their **${displayName.toUpperCase()}** goal of **${Number(data.target).toLocaleString()}**! 🎉🎉`, 
+        content: `🏆 <@${userId}> **COMPLETED** their **${displayName.toUpperCase()}** goal of **${Number(data.target).toLocaleString()}**! 🎉`, 
         embeds: [embed] 
       };
 

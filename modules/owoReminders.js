@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 const activeTimers = new Map();
 const processedMessages = new Map();
 
@@ -88,6 +91,7 @@ module.exports = {
       let isEnabled = true;
       let usePing = true;
       let useReply = false;
+      let isAutoDelete = false;
 
       if (prefsModule && typeof prefsModule.getSetting === 'function') {
         const settingRaw = prefsModule.getSetting(userId, settingKey, 'enabled');
@@ -98,6 +102,9 @@ module.exports = {
 
         const useReplyRaw = prefsModule.getSetting(userId, settingKey, 'reply');
         if (useReplyRaw !== undefined) useReply = useReplyRaw;
+
+        const autoDeleteRaw = prefsModule.getSetting(userId, settingKey, 'autoDelete');
+        if (autoDeleteRaw !== undefined) isAutoDelete = autoDeleteRaw;
       }
 
       if (!isEnabled) return;
@@ -139,7 +146,7 @@ module.exports = {
             sentMessage = await message.channel.send(reminderText);
           }
 
-          if (sentMessage && typeof sentMessage.delete === 'function') {
+          if (sentMessage && typeof sentMessage.delete === 'function' && isAutoDelete) {
             setTimeout(async () => {
               try {
                 await sentMessage.delete();
@@ -162,5 +169,7 @@ module.exports = {
     } catch (error) {
       console.error('OwO reminder execution error:', error);
     }
+  }
+};
   }
 };

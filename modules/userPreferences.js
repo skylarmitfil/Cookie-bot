@@ -25,6 +25,11 @@ try {
         const rawData = fs.readFileSync(DATA_FILE, 'utf8');
         if (rawData.trim()) {
             const parsed = JSON.parse(rawData);
+            for (const [uid, settings] of Object.entries(parsed)) {
+                if (settings.autoDelete === undefined) {
+                    settings.autoDelete = false;
+                }
+            }
             userSettings = new Map(Object.entries(parsed));
             console.log(`[STORAGE] Successfully loaded ${userSettings.size} user profiles.`);
         }
@@ -47,28 +52,37 @@ function getOrCreateUserConfig(userId) {
         userSettings.set(userId, {
             'Hunt/Battle': { enabled: true, ping: true, reply: true },
             'Pray/Curse': { enabled: true, ping: true, reply: true },
-            'OwO': { enabled: true, ping: true, reply: true }
+            'OwO': { enabled: true, ping: true, reply: true },
+            autoDelete: false
         });
         saveSettingsData();
+    } else {
+        const userConfig = userSettings.get(userId);
+        if (userConfig.autoDelete === undefined) {
+            userConfig.autoDelete = false;
+        }
     }
     return userSettings.get(userId);
 }
 
 function buildConfigPayload(userId, category, avatarURL) {
-    const config = getOrCreateUserConfig(userId)[category];
+    const fullConfig = getOrCreateUserConfig(userId);
+    const config = fullConfig[category];
     const shortCat = REVERSE_MAP[category];
+    const isAutoDelete = fullConfig.autoDelete;
     
     const embed = new EmbedBuilder()
         .setDescription(
             `${config.enabled ? '✅' : '❌'} **Is this reminder enabled?**\n\n` +
             `${config.ping ? '✅' : '❌'} **Pings / mentions enabled?**\n` +
-            `${config.reply ? '✅' : '❌'} **Use inline replies?**`
+            `${config.reply ? '✅' : '❌'} **Use inline replies?**\n\n` +
+            `${isAutoDelete ? '✅' : '❌'} **Auto-delete reminders:** \`${isAutoDelete ? 'True' : 'False'}\``
         )
         .setThumbnail(avatarURL)
         .setColor(config.enabled ? 0x57F287 : 0xED4245)
         .setTimestamp();
 
-    const row = new ActionRowBuilder().addComponents(
+    const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`r_toggle_${shortCat}_enabled_${userId}`)
             .setLabel(category.toLowerCase())
@@ -83,7 +97,14 @@ function buildConfigPayload(userId, category, avatarURL) {
             .setStyle(config.reply ? ButtonStyle.Success : ButtonStyle.Secondary)
     );
 
-    return { embeds: [embed], components: [row] };
+    const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`r_toggle_autodelete_${userId}`)
+            .setLabel(`Auto-Delete: ${isAutoDelete ? 'On' : 'Off'}`)
+            .setStyle(isAutoDelete ? ButtonStyle.Success : ButtonStyle.Secondary)
+    );
+
+    return { embeds: [embed], components: [row1, row2] };
 }
 
 module.exports = {
@@ -91,6 +112,7 @@ module.exports = {
     
     getSetting(userId, category, settingKey) {
         const userConfig = getOrCreateUserConfig(userId);
+        if (settingKey === 'autoDelete') return userConfig.autoDelete;
         return userConfig[category][settingKey];
     },
 
@@ -121,29 +143,33 @@ module.exports = {
 
         collector.on('collect', async (interaction) => {
             const parts = interaction.customId.split('_');
-            const shortCat = parts[2];
-            const settingKey = parts[3];
-            const targetUserId = parts[4];
+            const targetUserId = parts[parts.length - 1];
 
             if (interaction.user.id !== targetUserId) {
                 return interaction.reply({ content: '❌ Not your menu!', ephemeral: true });
             }
 
-            const dbCategory = CATEGORY_MAP[shortCat];
-            const config = getOrCreateUserConfig(targetUserId);
+            const userConfig = getOrCreateUserConfig(targetUserId);
             
-            config[dbCategory][settingKey] = !config[dbCategory][settingKey];
+            if (parts[2] === 'autodelete') {
+                userConfig.autoDelete = !userConfig.autoDelete;
+            } else {
+                const shortCat = parts[2];
+                const settingKey = parts[3];
+                const dbCategory = CATEGORY_MAP[shortCat];
+                userConfig[dbCategory][settingKey] = !userConfig[dbCategory][settingKey];
+            }
+            
             saveSettingsData();
 
             const currentAvatarURL = interaction.user.displayAvatarURL({ forceStatic: false, size: 256 });
-            const updatedPayload = buildConfigPayload(targetUserId, dbCategory, currentAvatarURL);
-            updatedPayload.embeds[0].setTitle(`${interaction.user.username}'s ${dbCategory.toLowerCase()} settings`);
+            const updatedPayload = buildConfigPayload(targetUserId, targetCategory, currentAvatarURL);
+            updatedPayload.embeds[0].setTitle(`${interaction.user.username}'s ${targetCategory.toLowerCase()} settings`);
             
             await interaction.update(updatedPayload);
         });
 
         collector.on('end', () => {
-            // Restored absolute deletion on menu expiration timeout loops
             menuMessage.delete().catch(() => {});
             message.delete().catch(() => {});
         });

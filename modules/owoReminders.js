@@ -58,6 +58,8 @@ module.exports = {
         },
         matches: () => {
           return (
+            slashName === 'pray' ||
+            slashName === 'curse' ||
             content === 'pray' ||
             content === 'curse' ||
             /^(owo|uwu|w)\s+(pray|curse)$/.test(content)
@@ -111,7 +113,7 @@ module.exports = {
         if (settingRaw !== undefined) isEnabled = settingRaw;
 
         const usePingRaw = prefsModule.getSetting(userId, settingKey, 'ping');
-        if (usePingRaw !== undefined) usePingRaw = usePingRaw;
+        if (usePingRaw !== undefined) usePing = usePingRaw;
 
         const useReplyRaw = prefsModule.getSetting(userId, settingKey, 'reply');
         if (useReplyRaw !== undefined) useReply = useReplyRaw;

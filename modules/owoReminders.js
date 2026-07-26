@@ -20,7 +20,7 @@ module.exports = {
     const commandConfig = [
       {
         settingKey: 'Hunt/Battle',
-        cooldown: 16000,
+        cooldown: 14000,
         emoji: '<:hunt_battle:1520116392756772944>',
         alertTemplate: (emoji) => `**Hunt/Battle** ${emoji}`,
         matches: () => {

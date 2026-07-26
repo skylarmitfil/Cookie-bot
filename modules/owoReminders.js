@@ -3,19 +3,14 @@ const path = require('path');
 
 const activeTimers = new Map();
 const processedMessages = new Map();
+const userEmojiIndices = new Map();
 
-// Move commandConfig outside so emojiIndex persists across reminders/messages
 const commandConfig = [
   {
     settingKey: 'Hunt/Battle',
     cooldown: 16000,
     emojis: ['<:hunt_battle:1520116392756772944>', '💀', '⚔️', '🥀', '🩸'],
-    emojiIndex: 0,
-    alertTemplate: function() {
-      this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
-      const currentEmoji = this.emojis[this.emojiIndex];
-      return `**Hunt/Battle** ${currentEmoji}`;
-    },
+    label: '**Hunt/Battle**',
     matches: (content, slashName) => {
       if (
         slashName === 'hunt' ||
@@ -37,13 +32,8 @@ const commandConfig = [
   {
     settingKey: 'Pray/Curse',
     cooldown: 300000,
-    emojis: ['<:Praycurse:1520116373408317570>', '✨', '🙏', '👀'],
-    emojiIndex: 0,
-    alertTemplate: function() {
-      this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
-      const currentEmoji = this.emojis[this.emojiIndex];
-      return `**Pray/Curse** ${currentEmoji}`;
-    },
+    prayEmojis: ['<:Praycurse:1520116373408317570>', '✨', '🙏'],
+    curseEmojis: ['🚨', '🤬', '👀'],
     matches: (content, slashName) => {
       return (
         slashName === 'pray' ||
@@ -58,17 +48,34 @@ const commandConfig = [
     settingKey: 'OwO',
     cooldown: 10000,
     emojis: ['<:owo:1527608869377933463>', '😺', '💌'],
-    emojiIndex: 0,
-    alertTemplate: function() {
-      this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
-      const currentEmoji = this.emojis[this.emojiIndex];
-      return `**OwO/UwU** ${currentEmoji}`;
-    },
+    label: '**OwO/UwU**',
     matches: (content) => {
       return content === 'owo' || content === 'uwu';
     }
   }
 ];
+
+function getNextEmoji(userId, cmd, content, slashName) {
+  if (cmd.settingKey === 'Pray/Curse') {
+    const isCurse = slashName === 'curse' || content.includes('curse');
+    const label = isCurse ? '**Curse**' : '**Pray**';
+    const emojiList = isCurse ? cmd.curseEmojis : cmd.prayEmojis;
+    
+    const mapKey = `${userId}-${cmd.settingKey}-${isCurse ? 'curse' : 'pray'}`;
+    let currentIndex = userEmojiIndices.get(mapKey) ?? -1;
+    currentIndex = (currentIndex + 1) % emojiList.length;
+    userEmojiIndices.set(mapKey, currentIndex);
+    
+    return `${label} ${emojiList[currentIndex]}`;
+  }
+
+  const mapKey = `${userId}-${cmd.settingKey}`;
+  let currentIndex = userEmojiIndices.get(mapKey) ?? -1;
+  currentIndex = (currentIndex + 1) % cmd.emojis.length;
+  userEmojiIndices.set(mapKey, currentIndex);
+  
+  return `${cmd.label} ${cmd.emojis[currentIndex]}`;
+}
 
 module.exports = {
   name: 'oworeminders',
@@ -100,7 +107,7 @@ module.exports = {
     setTimeout(() => processedMessages.delete(messageKey), 30000);
 
     try {
-      const { settingKey, cooldown, alertTemplate } = matchedCommand;
+      const { settingKey, cooldown } = matchedCommand;
       const prefsModule = message.client?.modules?.get('c');
       const reminderModule = message.client?.modules?.get('reminder');
 
@@ -137,7 +144,7 @@ module.exports = {
 
       const newTimer = setTimeout(async () => {
         try {
-          let alertMessage = alertTemplate.call(matchedCommand);
+          let alertMessage = getNextEmoji(userId, matchedCommand, content, slashName);
           if (reminderModule && reminderModule.userReminderMsgs) {
             const userMsgs = reminderModule.userReminderMsgs.get(userId);
             if (userMsgs && userMsgs[settingKey]) {

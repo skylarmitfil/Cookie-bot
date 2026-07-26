@@ -4,6 +4,72 @@ const path = require('path');
 const activeTimers = new Map();
 const processedMessages = new Map();
 
+// Move commandConfig outside so emojiIndex persists across reminders/messages
+const commandConfig = [
+  {
+    settingKey: 'Hunt/Battle',
+    cooldown: 16000,
+    emojis: ['<:hunt_battle:1520116392756772944>', '💀', '⚔️', '🥀', '🩸'],
+    emojiIndex: 0,
+    alertTemplate: function() {
+      this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
+      const currentEmoji = this.emojis[this.emojiIndex];
+      return `**Hunt/Battle** ${currentEmoji}`;
+    },
+    matches: (content, slashName) => {
+      if (
+        slashName === 'hunt' ||
+        slashName === 'battle' ||
+        content === 'h' ||
+        content === 'b' ||
+        content === 'hunt' ||
+        content === 'battle' ||
+        content === 'wh' ||
+        content === 'wb'
+      ) {
+        return true;
+      }
+      return /^(owo|uwu|w)\s+(hunt|battle|h|b|wh|wb)$/.test(content) ||
+             /^w\s*(h|b|wh|wb)$/.test(content) ||
+             /^(wh|wb)$/.test(content);
+    }
+  },
+  {
+    settingKey: 'Pray/Curse',
+    cooldown: 300000,
+    emojis: ['<:Praycurse:1520116373408317570>', '✨', '🙏', '👀'],
+    emojiIndex: 0,
+    alertTemplate: function() {
+      this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
+      const currentEmoji = this.emojis[this.emojiIndex];
+      return `**Pray/Curse** ${currentEmoji}`;
+    },
+    matches: (content, slashName) => {
+      return (
+        slashName === 'pray' ||
+        slashName === 'curse' ||
+        content === 'pray' ||
+        content === 'curse' ||
+        /^(owo|uwu|w)\s+(pray|curse)$/.test(content)
+      );
+    }
+  },
+  {
+    settingKey: 'OwO',
+    cooldown: 10000,
+    emojis: ['<:owo:1527608869377933463>', '😺', '💌'],
+    emojiIndex: 0,
+    alertTemplate: function() {
+      this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
+      const currentEmoji = this.emojis[this.emojiIndex];
+      return `**OwO/UwU** ${currentEmoji}`;
+    },
+    matches: (content) => {
+      return content === 'owo' || content === 'uwu';
+    }
+  }
+];
+
 module.exports = {
   name: 'oworeminders',
   execute: async (message) => {
@@ -17,74 +83,9 @@ module.exports = {
 
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
-    const commandConfig = [
-      {
-        settingKey: 'Hunt/Battle',
-        cooldown: 16000,
-        emojis: ['<:hunt_battle:1520116392756772944>', '💀', '⚔️', '🥀', '🩸'],
-        emojiIndex: 0,
-        alertTemplate: function() {
-          this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
-          const currentEmoji = this.emojis[this.emojiIndex];
-          return `**Hunt/Battle** ${currentEmoji}`;
-        },
-        matches: () => {
-          if (
-            slashName === 'hunt' ||
-            slashName === 'battle' ||
-            content === 'h' ||
-            content === 'b' ||
-            content === 'hunt' ||
-            content === 'battle' ||
-            content === 'wh' ||
-            content === 'wb'
-          ) {
-            return true;
-          }
-          return /^(owo|uwu|w)\s+(hunt|battle|h|b|wh|wb)$/.test(content) ||
-                 /^w\s*(h|b|wh|wb)$/.test(content) ||
-                 /^(wh|wb)$/.test(content);
-        }
-      },
-      {
-        settingKey: 'Pray/Curse',
-        cooldown: 300000,
-        emojis: ['<:Praycurse:1520116373408317570>', '✨', '🙏', '👀'],
-        emojiIndex: 0,
-        alertTemplate: function() {
-          this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
-          const currentEmoji = this.emojis[this.emojiIndex];
-          return `**Pray/Curse** ${currentEmoji}`;
-        },
-        matches: () => {
-          return (
-            slashName === 'pray' ||
-            slashName === 'curse' ||
-            content === 'pray' ||
-            content === 'curse' ||
-            /^(owo|uwu|w)\s+(pray|curse)$/.test(content)
-          );
-        }
-      },
-      {
-        settingKey: 'OwO',
-        cooldown: 10000,
-        emojis: ['<:owo:1527608869377933463>', '😺', '💌'],
-        emojiIndex: 0,
-        alertTemplate: function() {
-          this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
-          const currentEmoji = this.emojis[this.emojiIndex];
-          return `**OwO/UwU** ${currentEmoji}`;
-        },
-        matches: () => {
-          return content === 'owo' || content === 'uwu';
-        }
-      }
-    ];
-
     const matchedCommand = commandConfig.find(cmd => {
       try {
-        return cmd.matches();
+        return cmd.matches(content, slashName);
       } catch {
         return false;
       }

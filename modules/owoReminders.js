@@ -18,14 +18,13 @@ module.exports = {
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
     const commandConfig = [
-{
+      {
         settingKey: 'Hunt/Battle',
         cooldown: 16000,
-        emojis: ['<:hunt_battle:1520116392756772944>', '💀', '⚔️', '🥀', '🩸', 
+        emojis: ['<:hunt_battle:1520116392756772944>', '💀', '⚔️', '🥀', '🩸'],
         emojiIndex: 0,
         alertTemplate: function() {
           const currentEmoji = this.emojis[this.emojiIndex];
-          // Cycle to the next emoji index for the subsequent alert
           this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
           return `**Hunt/Battle** ${currentEmoji}`;
         },
@@ -47,10 +46,10 @@ module.exports = {
                  /^(wh|wb)$/.test(content);
         }
       },
-    {
+      {
         settingKey: 'Pray/Curse',
         cooldown: 300000,
-        emojis: ['<:Praycurse:1520116373408317570>', '✨', '🙏', '👀'], 
+        emojis: ['<:Praycurse:1520116373408317570>', '✨', '🙏', '👀'],
         emojiIndex: 0,
         alertTemplate: function() {
           const currentEmoji = this.emojis[this.emojiIndex];
@@ -65,10 +64,10 @@ module.exports = {
           );
         }
       },
-    {
+      {
         settingKey: 'OwO',
         cooldown: 10000,
-        emojis: ['<:owo:1527608869377933463>', '😺', '💌'], // Add your alternating emojis here
+        emojis: ['<:owo:1527608869377933463>', '😺', '💌'],
         emojiIndex: 0,
         alertTemplate: function() {
           const currentEmoji = this.emojis[this.emojiIndex];
@@ -79,6 +78,7 @@ module.exports = {
           return content === 'owo' || content === 'uwu';
         }
       }
+    ];
 
     const matchedCommand = commandConfig.find(cmd => {
       try {
@@ -97,7 +97,7 @@ module.exports = {
     setTimeout(() => processedMessages.delete(messageKey), 30000);
 
     try {
-      const { settingKey, cooldown, emoji, alertTemplate } = matchedCommand;
+      const { settingKey, cooldown, alertTemplate } = matchedCommand;
       const prefsModule = message.client?.modules?.get('c');
       const reminderModule = message.client?.modules?.get('reminder');
 
@@ -111,7 +111,7 @@ module.exports = {
         if (settingRaw !== undefined) isEnabled = settingRaw;
 
         const usePingRaw = prefsModule.getSetting(userId, settingKey, 'ping');
-        if (usePingRaw !== undefined) usePing = usePingRaw;
+        if (usePingRaw !== undefined) usePingRaw = usePingRaw;
 
         const useReplyRaw = prefsModule.getSetting(userId, settingKey, 'reply');
         if (useReplyRaw !== undefined) useReply = useReplyRaw;
@@ -134,7 +134,7 @@ module.exports = {
 
       const newTimer = setTimeout(async () => {
         try {
-          let alertMessage = alertTemplate(emoji);
+          let alertMessage = alertTemplate.call(matchedCommand);
           if (reminderModule && reminderModule.userReminderMsgs) {
             const userMsgs = reminderModule.userReminderMsgs.get(userId);
             if (userMsgs && userMsgs[settingKey]) {

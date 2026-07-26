@@ -24,8 +24,8 @@ module.exports = {
         emojis: ['<:hunt_battle:1520116392756772944>', '💀', '⚔️', '🥀', '🩸'],
         emojiIndex: 0,
         alertTemplate: function() {
-          const currentEmoji = this.emojis[this.emojiIndex];
           this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
+          const currentEmoji = this.emojis[this.emojiIndex];
           return `**Hunt/Battle** ${currentEmoji}`;
         },
         matches: () => {
@@ -52,8 +52,8 @@ module.exports = {
         emojis: ['<:Praycurse:1520116373408317570>', '✨', '🙏', '👀'],
         emojiIndex: 0,
         alertTemplate: function() {
-          const currentEmoji = this.emojis[this.emojiIndex];
           this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
+          const currentEmoji = this.emojis[this.emojiIndex];
           return `**Pray/Curse** ${currentEmoji}`;
         },
         matches: () => {
@@ -72,8 +72,8 @@ module.exports = {
         emojis: ['<:owo:1527608869377933463>', '😺', '💌'],
         emojiIndex: 0,
         alertTemplate: function() {
-          const currentEmoji = this.emojis[this.emojiIndex];
           this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
+          const currentEmoji = this.emojis[this.emojiIndex];
           return `**OwO/UwU** ${currentEmoji}`;
         },
         matches: () => {

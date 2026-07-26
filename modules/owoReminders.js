@@ -18,11 +18,17 @@ module.exports = {
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
     const commandConfig = [
-      {
+{
         settingKey: 'Hunt/Battle',
-        cooldown: 14000,
-        emoji: '<:hunt_battle:1520116392756772944>',
-        alertTemplate: (emoji) => `**Hunt/Battle** ${emoji}`,
+        cooldown: 16000,
+        emojis: ['<:hunt_battle:1520116392756772944>', '💀', '⚔️', '🥀', '🩸', 
+        emojiIndex: 0,
+        alertTemplate: function() {
+          const currentEmoji = this.emojis[this.emojiIndex];
+          // Cycle to the next emoji index for the subsequent alert
+          this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
+          return `**Hunt/Battle** ${currentEmoji}`;
+        },
         matches: () => {
           if (
             slashName === 'hunt' ||
@@ -36,38 +42,43 @@ module.exports = {
           ) {
             return true;
           }
-          return /^(owo|uwu|w)\s+(hunt|battle|h|b)$/.test(content) ||
-                 /^w\s*h$/.test(content) ||
-                 /^w\s*b$/.test(content) ||
-                 /^wh$/.test(content) ||
-                 /^wb$/.test(content);
+          return /^(owo|uwu|w)\s+(hunt|battle|h|b|wh|wb)$/.test(content) ||
+                 /^w\s*(h|b|wh|wb)$/.test(content) ||
+                 /^(wh|wb)$/.test(content);
         }
       },
-      {
+    {
         settingKey: 'Pray/Curse',
         cooldown: 300000,
-        emoji: '<:Praycurse:1520116373408317570>',
-        alertTemplate: (emoji) => `**Pray/Curse** ${emoji}`,
+        emojis: ['<:Praycurse:1520116373408317570>', '✨', '🙏', '👀'], 
+        emojiIndex: 0,
+        alertTemplate: function() {
+          const currentEmoji = this.emojis[this.emojiIndex];
+          this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
+          return `**Pray/Curse** ${currentEmoji}`;
+        },
         matches: () => {
           return (
-            slashName === 'pray' ||
-            slashName === 'curse' ||
             content === 'pray' ||
             content === 'curse' ||
             /^(owo|uwu|w)\s+(pray|curse)$/.test(content)
           );
         }
       },
-      {
+    {
         settingKey: 'OwO',
         cooldown: 10000,
-        emoji: '<:owo:1527608869377933463>',
-        alertTemplate: (emoji) => `**OwO/UwU** ${emoji}`,
+        emojis: ['<:owo:1527608869377933463>', '😺', '💌'], // Add your alternating emojis here
+        emojiIndex: 0,
+        alertTemplate: function() {
+          const currentEmoji = this.emojis[this.emojiIndex];
+          this.emojiIndex = (this.emojiIndex + 1) % this.emojis.length;
+          return `**OwO/UwU** ${currentEmoji}`;
+        },
         matches: () => {
           return content === 'owo' || content === 'uwu';
         }
       }
-    ];
 
     const matchedCommand = commandConfig.find(cmd => {
       try {

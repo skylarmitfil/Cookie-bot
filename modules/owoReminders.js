@@ -30,7 +30,9 @@ module.exports = {
             content === 'h' ||
             content === 'b' ||
             content === 'hunt' ||
-            content === 'battle'
+            content === 'battle' ||
+            content === 'wh' ||
+            content === 'wb'
           ) {
             return true;
           }

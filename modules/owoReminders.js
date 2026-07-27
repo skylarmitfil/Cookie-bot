@@ -8,7 +8,7 @@ const userEmojiIndices = new Map();
 const commandConfig = [
   {
     settingKey: 'Hunt/Battle',
-    cooldown: 16000,
+    cooldown: 14000,
     emojis: ['<:hunt_battle:1520116392756772944>', '💀', '⚔️', '🥀', '🩸'],
     label: '**Hunt/Battle**',
     matches: (content, slashName) => {

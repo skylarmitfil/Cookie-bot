@@ -23,11 +23,27 @@ module.exports = {
     try {
       const prefix = '.'; 
 
+      const allText = `### Quests\n\n` +
+                      `**All Quests:**\n` +
+                      `┃ \`${prefix}q all\` — View all available quests and progress`;
+
+      const prayText = `### Quests\n\n` +
+                       `**Pray Quests:**\n` +
+                       `┃ \`${prefix}q pray\` — View your pray quest status`;
+
+      const curseText = `### Quests\n\n` +
+                        `**Curse Quests:**\n` +
+                        `┃ \`${prefix}q curse\` — View your curse quest status`;
+
+      const actionText = `### Quests\n\n` +
+                         `**Action Quests:**\n` +
+                         `┃ \`${prefix}q action\` — View your action quest status`;
+
       const contents = {
-        all_quests: '',
-        pray_quests: '',
-        curse_quests: '',
-        action_quests: ''
+        all_quests: allText,
+        pray_quests: prayText,
+        curse_quests: curseText,
+        action_quests: actionText
       };
 
       const buildV2Payload = (selectedKey = 'all_quests', disabled = false) => {

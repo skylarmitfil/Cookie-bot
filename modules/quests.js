@@ -12,8 +12,11 @@ module.exports = {
     const isQuestCommand = 
       slashName === 'q' ||
       slashName === 'quest' ||
+      content === '.q' ||
+      content === '.quest' ||
       content === 'q' ||
-      content === 'quest';
+      content === 'quest' ||
+      /^[!#./\\?]\s*(q|quest)$/.test(content);
 
     if (!isQuestCommand) return;
 
@@ -68,5 +71,3 @@ module.exports = {
     }
   }
 };
-
-```

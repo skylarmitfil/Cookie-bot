@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+  const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
 module.exports = {
   name: 'q',
@@ -25,18 +25,11 @@ module.exports = {
         .setColor(0x5865F2)
         .setTitle('Quests')
         .setDescription('Select a category from the menu below to view specific quest details.')
-        .addFields(
-          { 
-            name: '✨ Overview', 
-            value: 'Use the dropdown menu to filter between All Quests, Pray Quests, Curse Quests, and Action Quests.', 
-            inline: false 
-          }
-        )
         .setTimestamp();
 
       const row = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId('quest_menu')
+          .setCustomId('quest_menu_v2')
           .setPlaceholder('Make a selection')
           .addOptions([
             {

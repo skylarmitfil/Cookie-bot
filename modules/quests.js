@@ -21,10 +21,6 @@ module.exports = {
     if (!isQuestCommand) return;
 
     try {
-      if (typeof message.deferReply === 'function' && !message.deferred && !message.replied) {
-        await message.deferReply();
-      }
-
       const prefix = '.'; 
 
       const allText = `### Quests\n\n` +
@@ -114,8 +110,8 @@ module.exports = {
 
       const payload = buildV2Payload('all_quests', false);
 
-      if (typeof message.editReply === 'function' && (message.deferred || message.replied)) {
-        await message.editReply(payload);
+      if (typeof message.reply === 'function' && !message.deferred && !message.replied) {
+        await message.reply(payload);
       } else if (message.channel && typeof message.channel.send === 'function') {
         await message.channel.send(payload);
       }

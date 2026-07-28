@@ -21,6 +21,10 @@ module.exports = {
     if (!isQuestCommand) return;
 
     try {
+      if (typeof message.deferReply === 'function' && !message.deferred && !message.replied) {
+        await message.deferReply();
+      }
+
       const prefix = '.'; 
 
       const allText = `### Quests\n\n` +
@@ -108,8 +112,12 @@ module.exports = {
         };
       };
 
-      if (message.channel && typeof message.channel.send === 'function') {
-        await message.channel.send(buildV2Payload('all_quests', false));
+      const payload = buildV2Payload('all_quests', false);
+
+      if (typeof message.editReply === 'function' && (message.deferred || message.replied)) {
+        await message.editReply(payload);
+      } else if (message.channel && typeof message.channel.send === 'function') {
+        await message.channel.send(payload);
       }
     } catch (error) {
       console.error('Error executing quests command:', error);

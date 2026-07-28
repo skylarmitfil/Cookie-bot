@@ -1,4 +1,4 @@
-  const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
 module.exports = {
   name: 'q',
@@ -21,43 +21,79 @@ module.exports = {
     if (!isQuestCommand) return;
 
     try {
-      const embed = new EmbedBuilder()
-        .setColor(0x5865F2)
-        .setTitle('Quests')
-        .setDescription('Select a category from the menu below to view specific quest details.')
-        .setTimestamp();
+      const prefix = '.'; 
 
-      const row = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId('quest_menu_v2')
-          .setPlaceholder('Make a selection')
-          .addOptions([
+      const contents = {
+        all_quests: '',
+        pray_quests: '',
+        curse_quests: '',
+        action_quests: ''
+      };
+
+      const buildV2Payload = (selectedKey = 'all_quests', disabled = false) => {
+        return {
+          flags: 32768, 
+          components: [
             {
-              label: 'All quests list',
-              value: 'all_quests',
-              emoji: '📜',
-              default: true,
-            },
-            {
-              label: 'Pray Quests',
-              value: 'pray_quests',
-              emoji: '🙏',
-            },
-            {
-              label: 'Curse Quests',
-              value: 'curse_quests',
-              emoji: '👻',
-            },
-            {
-              label: 'Action Quests',
-              value: 'action_quests',
-              emoji: '🎭',
-            },
-          ])
-      );
+              type: 17, // Container Component
+              accent_color: 14430780, 
+              components: [
+                {
+                  type: 1, // ActionRow (Menu placed first)
+                  components: [
+                    {
+                      type: 3, 
+                      custom_id: 'quest_menu_v2',
+                      placeholder: 'All quests list',
+                      disabled: disabled,
+                      options: [
+                        {
+                          label: 'All quests list',
+                          description: 'View all available quests',
+                          value: 'all_quests',
+                          emoji: { id: null, name: '📜' },
+                          default: selectedKey === 'all_quests'
+                        },
+                        {
+                          label: 'Pray Quests',
+                          description: 'View pray quest details',
+                          value: 'pray_quests',
+                          emoji: { id: null, name: '🙏' },
+                          default: selectedKey === 'pray_quests'
+                        },
+                        {
+                          label: 'Curse Quests',
+                          description: 'View curse quest details',
+                          value: 'curse_quests',
+                          emoji: { id: null, name: '👻' },
+                          default: selectedKey === 'curse_quests'
+                        },
+                        {
+                          label: 'Action Quests',
+                          description: 'View action quest details',
+                          value: 'action_quests',
+                          emoji: { id: null, name: '🎭' },
+                          default: selectedKey === 'action_quests'
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  type: 14 // Separator Component
+                },
+                {
+                  type: 10, // TextDisplay
+                  content: contents[selectedKey]
+                }
+              ]
+            }
+          ]
+        };
+      };
 
       if (message.channel && typeof message.channel.send === 'function') {
-        await message.channel.send({ embeds: [embed], components: [row] });
+        await message.channel.send(buildV2Payload('all_quests', false));
       }
     } catch (error) {
       console.error('Error executing quests command:', error);

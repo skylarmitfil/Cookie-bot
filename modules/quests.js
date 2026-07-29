@@ -38,9 +38,10 @@ module.exports = {
       const userId = message.author.id;
       const allKey = `${userId}_all_quests`;
       
-      let userAllData = db.get(allKey) || db.get(userId) || { username: message.author.username, quests: {} };
+      let userAllData = db.get(allKey) || db.get(userId) || { userId, username: message.author.username, quests: {} };
       const savedQuests = userAllData.quests || {};
       const username = userAllData.username || message.author.username;
+      const currentUserId = userAllData.userId || userId;
 
       const hasPray = Boolean(savedQuests.pray);
       const hasCurse = Boolean(savedQuests.curse);
@@ -52,15 +53,15 @@ module.exports = {
       if (hasAnyQuest) {
         if (hasPray) {
           const q = savedQuests.pray;
-          allText += `┃ ${username} (pray) ${q.done}/${q.total}\n`;
+          allText += `┃ ${username} (pray) \`${currentUserId}\` \`${q.done}/${q.total}\`\n`;
         }
         if (hasCurse) {
           const q = savedQuests.curse;
-          allText += `┃ ${username} (curse) ${q.done}/${q.total}\n`;
+          allText += `┃ ${username} (curse) \`${currentUserId}\` \`${q.done}/${q.total}\`\n`;
         }
         if (hasAction) {
           const q = savedQuests.action;
-          allText += `┃ ${username} (action) ${q.done}/${q.total}\n`;
+          allText += `┃ ${username} (action) \`${currentUserId}\` \`${q.done}/${q.total}\`\n`;
         }
         allText = allText.trimEnd();
       } else {
@@ -68,13 +69,13 @@ module.exports = {
       }
 
       const prayText = `### Quests\n\n**Pray Quests:**\n` + 
-        (hasPray ? `┃ ${username} (pray) ${savedQuests.pray.done}/${savedQuests.pray.total}` : `┃ No active pray quest.`);
+        (hasPray ? `┃ ${username} (pray) \`${currentUserId}\` \`${savedQuests.pray.done}/${savedQuests.pray.total}\`` : `┃ No active pray quest.`);
 
       const curseText = `### Quests\n\n**Curse Quests:**\n` + 
-        (hasCurse ? `┃ ${username} (curse) ${savedQuests.curse.done}/${savedQuests.curse.total}` : `┃ No active curse quest.`);
+        (hasCurse ? `┃ ${username} (curse) \`${currentUserId}\` \`${savedQuests.curse.done}/${savedQuests.curse.total}\`` : `┃ No active curse quest.`);
 
       const actionText = `### Quests\n\n**Action Quests:**\n` + 
-        (hasAction ? `┃ ${username} (action) ${savedQuests.action.done}/${savedQuests.action.total}` : `┃ No active action quest.`);
+        (hasAction ? `┃ ${username} (action) \`${currentUserId}\` \`${savedQuests.action.done}/${savedQuests.action.total}\`` : `┃ No active action quest.`);
 
       const contents = {
         all_quests: allText,
@@ -134,7 +135,6 @@ module.exports = {
     const db = message.client.questDatabase || new Map();
     const activity = message.client.recentQuestActivity || new Map();
 
-    // If a human is speaking, record their recent activity so we know who owns the upcoming OwO bot response
     if (message.author && !message.author.bot) {
       activity.set(message.channelId, {
         id: message.author.id,
@@ -144,7 +144,6 @@ module.exports = {
       return null; 
     }
 
-    // We ONLY want to parse messages coming from bots (like OwO) past this point
     if (!message.author || !message.author.bot) return null;
 
     let textToCheck = message.content || '';
@@ -209,6 +208,7 @@ module.exports = {
 
     const allKey = `${userId}_all_quests`;
     let userAllData = db.get(allKey) || db.get(userId) || { userId, username, quests: {} };
+    userAllData.userId = userId;
     userAllData.username = username;
 
     const allMatches = [...cleanContent.matchAll(/(\d+)\s*\/\s*(\d+)/g)];

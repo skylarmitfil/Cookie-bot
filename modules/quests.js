@@ -36,7 +36,10 @@ module.exports = {
 
     try {
       const userId = message.author.id;
-      const userAllData = db.get(`${userId}_all_quests`) || { username: message.author.username, quests: {} };
+      const allKey = `${userId}_all_quests`;
+      
+      // Fallback lookup to catch any key discrepancy
+      let userAllData = db.get(allKey) || db.get(userId) || { username: message.author.username, quests: {} };
       const savedQuests = userAllData.quests || {};
       const username = userAllData.username || message.author.username;
 
@@ -202,7 +205,7 @@ module.exports = {
     if (!userId) return null;
 
     const allKey = `${userId}_all_quests`;
-    let userAllData = db.get(allKey) || { userId, username, quests: {} };
+    let userAllData = db.get(allKey) || db.get(userId) || { userId, username, quests: {} };
     userAllData.username = username;
 
     const allMatches = [...cleanContent.matchAll(/(\d+)\s*\/\s*(\d+)/g)];
@@ -241,7 +244,9 @@ module.exports = {
     }
 
     if (updated) {
+      // Dual-save to prevent lookup mismatches
       db.set(allKey, userAllData);
+      db.set(userId, userAllData);
       return userAllData;
     }
 

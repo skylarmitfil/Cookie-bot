@@ -83,6 +83,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.MessageCreate, async (message) => {
   if (!message) return;
 
+  // Track active user context before bot filters trigger
   if (message.author && !message.author.bot && client.recentQuestActivity) {
     client.recentQuestActivity.set(message.channelId, {
       id: message.author.id,
@@ -109,9 +110,13 @@ client.on(Events.MessageCreate, async (message) => {
 
   const questMod = client.modules.get('q');
   if (questMod && typeof questMod.handleIncomingQuests === 'function') {
-    questMod.handleIncomingQuests(message).catch(err => {
-      console.error('[PASSIVE MODULE ERROR] quest handleIncomingQuests failure:', err);
-    });
+    questMod.handleIncomingQuests(message)
+      .then(data => {
+        if (data) console.log(`🟢 Successfully tracked quest for: ${data.username}`);
+      })
+      .catch(err => {
+        console.error('[PASSIVE MODULE ERROR] quest handleIncomingQuests failure:', err);
+      });
   }
 
   if (message.author?.bot) return;

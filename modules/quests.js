@@ -1,23 +1,17 @@
 const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
-// Optional local database placeholder. 
-// Replace this with your actual database setup (MongoDB, Quick.db, etc.)
 const localDatabaseMock = new Map(); 
 
 module.exports = {
   name: 'q',
   description: 'Displays quest information and tracking help.',
   
-  /**
-   * Command executor triggered when a user explicitly runs your command
-   */
   execute: async (message) => {
     if (!message) return;
 
     const content = (message.content || '').toLowerCase().trim();
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
-    // Regex checking for owo q, owo quest, w q, wq, and w quest
     const owoQuestRegex = /^(owo\s+q|owo\s+quest|w\s+q|wq|w\s+quest)$/;
 
     const isQuestCommand = 
@@ -63,11 +57,11 @@ module.exports = {
           flags: 32768, 
           components: [
             {
-              type: 17, // Container Component
+              type: 17,
               accent_color: 14430780, 
               components: [
                 {
-                  type: 1, // ActionRow (Menu placed first)
+                  type: 1,
                   components: [
                     {
                       type: 3, 
@@ -108,10 +102,10 @@ module.exports = {
                   ]
                 },
                 {
-                  type: 14 // Separator Component
+                  type: 14
                 },
                 {
-                  type: 10, // TextDisplay
+                  type: 10,
                   content: contents[selectedKey]
                 }
               ]
@@ -132,39 +126,28 @@ module.exports = {
     }
   },
 
-  /**
-   * Background parser that checks every message in your messageCreate event handler.
-   * Drop this call inside your main event file or index.js setup:
-   * e.g., commandFile.handleIncomingQuests(message);
-   */
   handleIncomingQuests: async (message) => {
     if (!message || !message.content) return null;
 
-    // Normalizes multiple sequential spacing blocks into single spaces
     const cleanContent = message.content.replace(/\s+/g, ' ').trim();
 
-    // Regular expression matching your custom log data structure
     const questParserRegex = /(Pray|Curse|Action)\s*Quests\s*—\s*(\d+\/\d+)\s*total\s*#1\s*(?:\[(\d+)\])?\s*([^\s]+)\s*(\d{17,20})\s*—\s*(\d+\/\d+)\s*\((\d+)%\)/i;
 
     const match = cleanContent.match(questParserRegex);
-    if (!match) return null; // Exit quietly if the layout doesn't represent a quest data stream
+    if (!match) return null;
 
     try {
       const questData = {
-        questType: match[1].toLowerCase(),       // 'pray', 'curse', or 'action'
-        globalProgress: match[2],                // Overall total progress string (e.g., '2/8')
-        bracketId: match[3] || null,             // The bracket counter/ID value (e.g., '522') if available
-        username: match[4],                      // The user's platform string username (e.g., 'killer_x_spy')
-        userId: match[5],                        // The specific Discord User snowflake ID (e.g., '557461780742406144')
-        userProgress: match[6],                  // Specific player completion ratio (e.g., '2/8')
-        percentage: parseInt(match[7], 10),      // Raw percentage number safely parsed to base-10 integer
-        timestamp: Date.now()                    // Event capture confirmation tracking stamp
+        questType: match[1].toLowerCase(),
+        globalProgress: match[2],
+        bracketId: match[3] || null,
+        username: match[4],
+        userId: match[5],
+        userProgress: match[6],
+        percentage: parseInt(match[7], 10),
+        timestamp: Date.now()
       };
 
-      // --- SAVE BLOCK ---
-      // Replace this specific map line below with your active database driver update rule:
-      // Examples: await db.set(`quest_${questData.userId}`, questData);
-      //           await schema.findOneAndUpdate({ userId: questData.userId }, questData, { upsert: true });
       const dbKey = `${questData.userId}_${questData.questType}`;
       localDatabaseMock.set(dbKey, questData);
 

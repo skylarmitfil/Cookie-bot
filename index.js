@@ -13,7 +13,6 @@ const client = new Client({
 
 client.modules = new Map();
 
-// Load Modules Directory (supports your existing flat file structure)
 const modulesPath = path.resolve(__dirname, 'modules');
 if (fs.existsSync(modulesPath)) {
   fs.readdirSync(modulesPath)
@@ -38,11 +37,10 @@ client.once(Events.ClientReady, async () => {
   console.log(`<Active> Logged in as ${client.user.tag}`);
 
   try {
-    const guildId = '1518659728677277826'; // Your specific server ID
+    const guildId = '1518659728677277826';
     const guild = await client.guilds.fetch(guildId);
 
     if (guild) {
-      // Register only the correct /reminder command instantly to your guild and clear out old ghost commands
       await guild.commands.set([
         {
           name: 'reminder',
@@ -56,7 +54,6 @@ client.once(Events.ClientReady, async () => {
   }
 });
 
-// Slash Command Router
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -83,22 +80,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// Text Prefix Message Router
 client.on(Events.MessageCreate, async (message) => {
-  if (!message || message.author?.bot) return;
+  if (!message) return;
 
-  const prefix = '.';
-  const content = message.content.trim();
-
-  // 1. Pass message to OwO reminders (if you have an oworeminders module)
-  const reminderMod = client.modules.get('oworeminders');
-  if (reminderMod && typeof reminderMod.execute === 'function') {
-    reminderMod.execute(message).catch(err => {
-      console.error('[PASSIVE MODULE ERROR] owoReminders failure:', err);
-    });
+  if (!message.author?.bot) {
+    const reminderMod = client.modules.get('oworeminders');
+    if (reminderMod && typeof reminderMod.execute === 'function') {
+      reminderMod.execute(message).catch(err => {
+        console.error('[PASSIVE MODULE ERROR] owoReminders failure:', err);
+      });
+    }
   }
 
-  // 2. Pass message to Goal tracker module so it counts hunts, battles, etc.
   const goalMod = client.modules.get('goal');
   if (goalMod && typeof goalMod.handleMessage === 'function') {
     goalMod.handleMessage(message).catch(err => {
@@ -106,8 +99,37 @@ client.on(Events.MessageCreate, async (message) => {
     });
   }
 
-  // 3. Command prefix router
-  if (!content.startsWith(prefix)) return;
+  const questMod = client.modules.get('q');
+  if (questMod && typeof questMod.handleIncomingQuests === 'function') {
+    questMod.handleIncomingQuests(message).catch(err => {
+      console.error('[PASSIVE MODULE ERROR] quest handleIncomingQuests failure:', err);
+    });
+  }
+
+  if (message.author?.bot) return;
+
+  const prefix = '.';
+  const content = message.content.trim();
+
+  if (!content.startsWith(prefix)) {
+    const spaceIndex = content.indexOf(' ');
+    const firstWord = (spaceIndex === -1 ? content : content.slice(0, spaceIndex)).toLowerCase();
+    
+    if (firstWord === 'owo' || firstWord === 'w') {
+      const subArgs = spaceIndex === -1 ? [] : content.slice(spaceIndex + 1).trim().split(/ +/);
+      const subCommand = subArgs.shift()?.toLowerCase();
+      
+      if (subCommand && client.modules.has(subCommand)) {
+        try {
+          await client.modules.get(subCommand).execute(message, subArgs);
+          return;
+        } catch (err) {
+          console.error(`[COMMAND ERROR] Failure executing owo command ${subCommand}:`, err);
+        }
+      }
+    }
+    return;
+  }
 
   const args = content.slice(prefix.length).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();

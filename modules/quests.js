@@ -38,7 +38,6 @@ module.exports = {
       const userId = message.author.id;
       const allKey = `${userId}_all_quests`;
       
-      // Fallback lookup to catch any key discrepancy
       let userAllData = db.get(allKey) || db.get(userId) || { username: message.author.username, quests: {} };
       const savedQuests = userAllData.quests || {};
       const username = userAllData.username || message.author.username;
@@ -135,6 +134,7 @@ module.exports = {
     const db = message.client.questDatabase || new Map();
     const activity = message.client.recentQuestActivity || new Map();
 
+    // If a human is speaking, record their recent activity so we know who owns the upcoming OwO bot response
     if (message.author && !message.author.bot) {
       activity.set(message.channelId, {
         id: message.author.id,
@@ -143,6 +143,9 @@ module.exports = {
       });
       return null; 
     }
+
+    // We ONLY want to parse messages coming from bots (like OwO) past this point
+    if (!message.author || !message.author.bot) return null;
 
     let textToCheck = message.content || '';
     if (message.embeds && message.embeds.length > 0) {
@@ -244,7 +247,6 @@ module.exports = {
     }
 
     if (updated) {
-      // Dual-save to prevent lookup mismatches
       db.set(allKey, userAllData);
       db.set(userId, userAllData);
       return userAllData;

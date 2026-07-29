@@ -24,8 +24,9 @@ module.exports = {
       const prefix = '.'; 
       const userId = message.author.id;
 
-      const userAllData = localDatabaseMock.get(`${userId}_all_quests`) || { quests: {} };
+      const userAllData = localDatabaseMock.get(`${userId}_all_quests`) || { username: message.author.username, quests: {} };
       const savedQuests = userAllData.quests || {};
+      const username = userAllData.username || message.author.username;
 
       const hasPray = Boolean(savedQuests.pray);
       const hasCurse = Boolean(savedQuests.curse);
@@ -36,31 +37,30 @@ module.exports = {
 
       if (hasAnyQuest) {
         if (hasPray) {
-          allText += `**Pray Quests:**\n┃ \`${prefix}q pray\` — View your pray quest status\n\n`;
+          const q = savedQuests.pray;
+          allText += `┃ ${username} (pray) ${q.done}/${q.total}\n`;
         }
         if (hasCurse) {
-          allText += `**Curse Quests:**\n┃ \`${prefix}q curse\` — View your curse quest status\n\n`;
+          const q = savedQuests.curse;
+          allText += `┃ ${username} (curse) ${q.done}/${q.total}\n`;
         }
         if (hasAction) {
-          allText += `**Action Quests:**\n┃ \`${prefix}q action\` — View your action quest status\n\n`;
+          const q = savedQuests.action;
+          allText += `┃ ${username} (action) ${q.done}/${q.total}\n`;
         }
         allText = allText.trimEnd();
       } else {
-        // Bottom part completely removed / simplified as requested
         allText += `**All Quests:**\n┃ No active quests tracked yet.`;
       }
 
-      const prayText = `### Quests\n\n` +
-                       `**Pray Quests:**\n` +
-                       `┃ \`${prefix}q pray\` — View your pray quest status`;
+      const prayText = `### Quests\n\n**Pray Quests:**\n` + 
+        (hasPray ? `┃ ${username} (pray) ${savedQuests.pray.done}/${savedQuests.pray.total}` : `┃ No active pray quest.`);
 
-      const curseText = `### Quests\n\n` +
-                        `**Curse Quests:**\n` +
-                        `┃ \`${prefix}q curse\` — View your curse quest status`;
+      const curseText = `### Quests\n\n**Curse Quests:**\n` + 
+        (hasCurse ? `┃ ${username} (curse) ${savedQuests.curse.done}/${savedQuests.curse.total}` : `┃ No active curse quest.`);
 
-      const actionText = `### Quests\n\n` +
-                         `**Action Quests:**\n` +
-                         `┃ \`${prefix}q action\` — View your action quest status`;
+      const actionText = `### Quests\n\n**Action Quests:**\n` + 
+        (hasAction ? `┃ ${username} (action) ${savedQuests.action.done}/${savedQuests.action.total}` : `┃ No active action quest.`);
 
       const contents = {
         all_quests: allText,
@@ -166,43 +166,64 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    // Fix: OwO embeds don't always tag or set message.author to the user.
-    // We parse user IDs from mentions, interaction metadata, or footer fields.
-    let userId = message.author && !message.author.bot ? message.author.id : null;
+    // FIXED: Properly look up who initiated the command or response interaction
+    let userId = null;
+    let username = 'user';
 
-    if (!userId && message.interaction && message.interaction.user) {
-      userId = message.interaction.user.id;
+    if (message.interactionMetadata?.user) {
+      userId = message.interactionMetadata.user.id;
+      username = message.interactionMetadata.user.username;
+    } else if (message.reference) {
+      // If it's a direct reply message, check the target reference author
+      try {
+        const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+        if (repliedMsg && !repliedMsg.author.bot) {
+          userId = repliedMsg.author.id;
+          username = repliedMsg.author.username;
+        }
+      } catch (e) {}
     }
 
-    if (!userId && message.mentions?.users?.first()) {
-      userId = message.mentions.users.first().id;
-    }
-
+    // Fallback regex to grab user IDs out of plain-text tags or mentions inside the text stream
     if (!userId) {
-      const matchId = cleanContent.match(/\b(\d{17,20})\b/);
-      if (matchId) userId = matchId[1];
+      const mentionMatch = cleanContent.match(/<@!?(\d{17,20})>/);
+      if (mentionMatch) {
+        userId = mentionMatch[1];
+        const userObj = message.client.users.cache.get(userId);
+        if (userObj) username = userObj.username;
+      }
+    }
+
+    // Default structural fallback safely ignoring pure bot-triggered accounts
+    if (!userId && message.author && !message.author.bot) {
+      userId = message.author.id;
+      username = message.author.username;
     }
 
     if (!userId) return null;
 
-    const username = message.author?.username || 'user';
     const allKey = `${userId}_all_quests`;
     let userAllData = localDatabaseMock.get(allKey);
     if (!userAllData) {
       userAllData = { userId, username, quests: {} };
     }
+    
+    userAllData.username = username;
+
+    const progressMatch = cleanContent.match(/(\d+)\s*\/\s*(\d+)/);
+    const done = progressMatch ? parseInt(progressMatch[1], 10) : 0;
+    const total = progressMatch ? parseInt(progressMatch[2], 10) : 1; 
 
     let updated = false;
 
-    // Expanded matching to catch OwO quest text variations accurately
     if (lowerContent.includes('pray') || lowerContent.includes('🙏')) {
-      userAllData.quests['pray'] = { questType: 'pray', timestamp: Date.now() };
+      userAllData.quests['pray'] = { questType: 'pray', done, total, timestamp: Date.now() };
       localDatabaseMock.set(`${userId}_pray`, userAllData.quests['pray']);
       updated = true;
     }
 
     if (lowerContent.includes('curse') || lowerContent.includes('👻')) {
-      userAllData.quests['curse'] = { questType: 'curse', timestamp: Date.now() };
+      userAllData.quests['curse'] = { questType: 'curse', done, total, timestamp: Date.now() };
       localDatabaseMock.set(`${userId}_curse`, userAllData.quests['curse']);
       updated = true;
     }
@@ -214,7 +235,7 @@ module.exports = {
       lowerContent.includes('action command') ||
       lowerContent.includes('use an action command')
     ) {
-      userAllData.quests['action'] = { questType: 'action', timestamp: Date.now() };
+      userAllData.quests['action'] = { questType: 'action', done, total, timestamp: Date.now() };
       localDatabaseMock.set(`${userId}_action`, userAllData.quests['action']);
       updated = true;
     }

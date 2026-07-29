@@ -162,83 +162,50 @@ module.exports = {
     if (!textToCheck) return null;
 
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
+    const lowerContent = cleanContent.toLowerCase();
 
-    const singleQuestRegex = /(?:([a-zA-Z]+)\s*Quests?|Quest[:\s]*([a-zA-Z]+))\s*—\s*(\d+\/\d+)\s*total\s*#(\d+)\s*(?:\[(\d+)\])?\s*([^\s]+)\s*(\d{17,20})\s*—\s*(\d+\/\d+)\s*\((\d+)%\)/i;
-    const match = cleanContent.match(singleQuestRegex);
+    let userId = message.author?.id;
+    if (!userId || message.author.bot) {
+      const matchId = cleanContent.match(/\b(\d{17,20})\b/);
+      if (matchId) userId = matchId[1];
+    }
+    if (!userId && message.mentions?.users?.first()) {
+      userId = message.mentions.users.first().id;
+    }
+    if (!userId) return null;
 
-    if (match) {
-      try {
-        const questType = (match[1] || match[2]).toLowerCase();
-        const questData = {
-          questType,
-          globalProgress: match[3],
-          rankNumber: match[4],
-          bracketId: match[5] || null,
-          username: match[6],
-          userId: match[7],
-          userProgress: match[8],
-          percentage: parseInt(match[9], 10),
-          timestamp: Date.now()
-        };
-
-        const dbKey = `${questData.userId}_${questData.questType}`;
-        const allKey = `${questData.userId}_all_quests`;
-
-        localDatabaseMock.set(dbKey, questData);
-
-        let userAllData = localDatabaseMock.get(allKey);
-        if (!userAllData) {
-          userAllData = { userId: questData.userId, username: questData.username, quests: {} };
-        }
-        userAllData.quests[questType] = questData;
-        localDatabaseMock.set(allKey, userAllData);
-
-        return questData;
-      } catch (err) {
-        console.error('Error parsing single quest log:', err);
-      }
+    const username = message.author?.username || 'user';
+    const allKey = `${userId}_all_quests`;
+    let userAllData = localDatabaseMock.get(allKey);
+    if (!userAllData) {
+      userAllData = { userId, username, quests: {} };
     }
 
-    const multiLineRegex = /(Pray|Curse|Action|Hunt|Battle|Gambling|Slot|Coinflip|Vote|Cookie|OwO)\s*[:\-]?\s*(\d+\/\d+)/gi;
-    let multiMatch;
-    let foundAny = false;
-    const userIdMatch = cleanContent.match(/\b(\d{17,20})\b/) || message.mentions?.users?.first()?.id;
-    const usernameMatch = cleanContent.match(/#1\s*(?:\[\d+\])?\s*([^\s]+)/) || message.author?.username;
+    let updated = false;
 
-    while ((multiMatch = multiLineRegex.exec(cleanContent)) !== null) {
-      foundAny = true;
-      try {
-        const questType = multiMatch[1].toLowerCase();
-        const progress = multiMatch[2];
-        const userId = typeof userIdMatch === 'string' ? userIdMatch : (userIdMatch ? userIdMatch[1] : 'unknown');
-        const username = Array.isArray(usernameMatch) ? usernameMatch[1] : usernameMatch;
-
-        const questData = {
-          questType,
-          userProgress: progress,
-          username,
-          userId,
-          timestamp: Date.now()
-        };
-
-        if (userId !== 'unknown') {
-          const dbKey = `${userId}_${questType}`;
-          const allKey = `${userId}_all_quests`;
-
-          localDatabaseMock.set(dbKey, questData);
-
-          let userAllData = localDatabaseMock.get(allKey);
-          if (!userAllData) {
-            userAllData = { userId, username, quests: {} };
-          }
-          userAllData.quests[questType] = questData;
-          localDatabaseMock.set(allKey, userAllData);
-        }
-      } catch (err) {
-        console.error('Error parsing overview quest log:', err);
-      }
+    if (lowerContent.includes('pray') || lowerContent.includes('🙏')) {
+      userAllData.quests['pray'] = { questType: 'pray', timestamp: Date.now() };
+      localDatabaseMock.set(`${userId}_pray`, userAllData.quests['pray']);
+      updated = true;
     }
 
-    return foundAny ? true : null;
+    if (lowerContent.includes('curse') || lowerContent.includes('👻')) {
+      userAllData.quests['curse'] = { questType: 'curse', timestamp: Date.now() };
+      localDatabaseMock.set(`${userId}_curse`, userAllData.quests['curse']);
+      updated = true;
+    }
+
+    if (lowerContent.includes('action') || lowerContent.includes('🎭') || lowerContent.includes('receive an action from a friend')) {
+      userAllData.quests['action'] = { questType: 'action', timestamp: Date.now() };
+      localDatabaseMock.set(`${userId}_action`, userAllData.quests['action']);
+      updated = true;
+    }
+
+    if (updated) {
+      localDatabaseMock.set(allKey, userAllData);
+      return userAllData;
+    }
+
+    return null;
   }
 };

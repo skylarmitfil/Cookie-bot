@@ -46,8 +46,8 @@ module.exports = {
         }
         allText = allText.trimEnd();
       } else {
-        allText += `**All Quests:**\n` +
-                   `┃ \`${prefix}q all\` — View all available quests and progress`;
+        // Updated default text when no quests are active, removing the bottom `.q all` description info
+        allText += `**All Quests:**\n┃ No active quests tracked yet.`;
       }
 
       const prayText = `### Quests\n\n` +
@@ -164,6 +164,7 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
+    // Enhanced OwO bot embed user extraction fallback for component / message listeners
     let userId = message.author?.id;
     if (!userId || message.author.bot) {
       const matchId = cleanContent.match(/\b(\d{17,20})\b/);
@@ -183,6 +184,7 @@ module.exports = {
 
     let updated = false;
 
+    // Check for OwO quest indicators and parse properly into acceptable types
     if (lowerContent.includes('pray') || lowerContent.includes('🙏')) {
       userAllData.quests['pray'] = { questType: 'pray', timestamp: Date.now() };
       localDatabaseMock.set(`${userId}_pray`, userAllData.quests['pray']);

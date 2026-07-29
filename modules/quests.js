@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
 const localDatabaseMock = new Map(); 
+const recentChannelActivity = new Map();
 
 module.exports = {
   name: 'q',
@@ -11,6 +12,14 @@ module.exports = {
 
     const content = (message.content || '').toLowerCase().trim();
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
+
+    if (message.author && !message.author.bot) {
+      recentChannelActivity.set(message.channelId, {
+        id: message.author.id,
+        username: message.author.username,
+        timestamp: Date.now()
+      });
+    }
 
     const isQuestCommand = 
       slashName === 'q' ||
@@ -86,45 +95,16 @@ module.exports = {
                       placeholder: 'All quests list',
                       disabled: disabled,
                       options: [
-                        {
-                          label: 'All quests list',
-                          description: 'View all available quests',
-                          value: 'all_quests',
-                          emoji: { id: null, name: '📜' },
-                          default: selectedKey === 'all_quests'
-                        },
-                        {
-                          label: 'Pray Quests',
-                          description: 'View pray quest details',
-                          value: 'pray_quests',
-                          emoji: { id: null, name: '🙏' },
-                          default: selectedKey === 'pray_quests'
-                        },
-                        {
-                          label: 'Curse Quests',
-                          description: 'View curse quest details',
-                          value: 'curse_quests',
-                          emoji: { id: null, name: '👻' },
-                          default: selectedKey === 'curse_quests'
-                        },
-                        {
-                          label: 'Action Quests',
-                          description: 'View action quest details',
-                          value: 'action_quests',
-                          emoji: { id: null, name: '🎭' },
-                          default: selectedKey === 'action_quests'
-                        }
+                        { label: 'All quests list', description: 'View all available quests', value: 'all_quests', emoji: { id: null, name: '📜' }, default: selectedKey === 'all_quests' },
+                        { label: 'Pray Quests', description: 'View pray quest details', value: 'pray_quests', emoji: { id: null, name: '🙏' }, default: selectedKey === 'pray_quests' },
+                        { label: 'Curse Quests', description: 'View curse quest details', value: 'curse_quests', emoji: { id: null, name: '👻' }, default: selectedKey === 'curse_quests' },
+                        { label: 'Action Quests', description: 'View action quest details', value: 'action_quests', emoji: { id: null, name: '🎭' }, default: selectedKey === 'action_quests' }
                       ]
                     }
                   ]
                 },
-                {
-                  type: 14
-                },
-                {
-                  type: 10,
-                  content: contents[selectedKey]
-                }
+                { type: 14 },
+                { type: 10, content: contents[selectedKey] }
               ]
             }
           ]
@@ -146,6 +126,15 @@ module.exports = {
   handleIncomingQuests: async (message) => {
     if (!message) return null;
 
+    if (message.author && !message.author.bot) {
+      recentChannelActivity.set(message.channelId, {
+        id: message.author.id,
+        username: message.author.username,
+        timestamp: Date.now()
+      });
+      return null; 
+    }
+
     let textToCheck = message.content || '';
     if (message.embeds && message.embeds.length > 0) {
       for (const embed of message.embeds) {
@@ -166,7 +155,9 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    // FIXED: Properly look up who initiated the command or response interaction
+    const isTargetQuest = lowerContent.includes('pray') || lowerContent.includes('curse') || lowerContent.includes('action') || lowerContent.includes('quest');
+    if (!isTargetQuest) return null;
+
     let userId = null;
     let username = 'user';
 
@@ -174,7 +165,6 @@ module.exports = {
       userId = message.interactionMetadata.user.id;
       username = message.interactionMetadata.user.username;
     } else if (message.reference) {
-      // If it's a direct reply message, check the target reference author
       try {
         const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
         if (repliedMsg && !repliedMsg.author.bot) {
@@ -184,35 +174,40 @@ module.exports = {
       } catch (e) {}
     }
 
-    // Fallback regex to grab user IDs out of plain-text tags or mentions inside the text stream
     if (!userId) {
-      const mentionMatch = cleanContent.match(/<@!?(\d{17,20})>/);
-      if (mentionMatch) {
-        userId = mentionMatch[1];
-        const userObj = message.client.users.cache.get(userId);
-        if (userObj) username = userObj.username;
+      const recentUser = recentChannelActivity.get(message.channelId);
+      if (recentUser && Date.now() - recentUser.timestamp < 10000) {
+        userId = recentUser.id;
+        username = recentUser.username;
       }
     }
 
-    // Default structural fallback safely ignoring pure bot-triggered accounts
-    if (!userId && message.author && !message.author.bot) {
-      userId = message.author.id;
-      username = message.author.username;
+    if (!userId && message.channel?.messages) {
+      try {
+        const messagesLog = await message.channel.messages.fetch({ limit: 5 });
+        const lastHumanMsg = messagesLog.find(msg => !msg.author.bot);
+        if (lastHumanMsg) {
+          userId = lastHumanMsg.author.id;
+          username = lastHumanMsg.author.username;
+        }
+      } catch (e) {}
     }
 
     if (!userId) return null;
 
     const allKey = `${userId}_all_quests`;
-    let userAllData = localDatabaseMock.get(allKey);
-    if (!userAllData) {
-      userAllData = { userId, username, quests: {} };
-    }
-    
+    let userAllData = localDatabaseMock.get(allKey) || { userId, username, quests: {} };
     userAllData.username = username;
 
-    const progressMatch = cleanContent.match(/(\d+)\s*\/\s*(\d+)/);
-    const done = progressMatch ? parseInt(progressMatch[1], 10) : 0;
-    const total = progressMatch ? parseInt(progressMatch[2], 10) : 1; 
+    const progressMatches = [...cleanContent.matchAll(/(\d+)\s*\/\s*(\d+)/g)];
+    let done = 0;
+    let total = 1;
+
+    if (progressMatches.length > 0) {
+      const lastMatch = progressMatches[progressMatches.length - 1];
+      done = parseInt(lastMatch[1], 10);  
+      total = parseInt(lastMatch[2], 10); 
+    }
 
     let updated = false;
 

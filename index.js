@@ -118,19 +118,34 @@ client.on(Events.MessageCreate, async (message) => {
   if (questMod && typeof questMod.handleIncomingQuests === 'function') {
     questMod.handleIncomingQuests(message)
       .then(data => {
-        if (data) console.log(`🟢 Successfully tracked quest for: ${data.username}`);
+        if (data) console.log(`<:up:1532147975587893460> Successfully tracked quest for: ${data.username}`);
       })
       .catch(err => {
         console.error('[PASSIVE MODULE ERROR] quest handleIncomingQuests failure:', err);
       });
   }
 
-  if (message.author?.bot) return;
-
   const prefix = '.';
   const content = message.content.trim();
 
-  if (!content.startsWith(prefix)) {
+  if (content.startsWith(prefix)) {
+    const args = content.slice(prefix.length).trim().split(/ +/);
+    const commandName = args.shift().toLowerCase();
+
+    if (commandName === 'oworeminders') return;
+
+    if (client.modules.has(commandName)) {
+      try {
+        await client.modules.get(commandName).execute(message, args);
+      } catch (err) {
+        console.error(`[COMMAND ERROR] Failure executing standard command ${commandName}:`, err);
+        message.reply('There was an error executing that command.').catch(() => {});
+      }
+    }
+    return;
+  }
+
+  if (!message.author?.bot) {
     const spaceIndex = content.indexOf(' ');
     const firstWord = (spaceIndex === -1 ? content : content.slice(0, spaceIndex)).toLowerCase();
     
@@ -148,20 +163,6 @@ client.on(Events.MessageCreate, async (message) => {
       }
     }
     return;
-  }
-
-  const args = content.slice(prefix.length).trim().split(/ +/);
-  const commandName = args.shift().toLowerCase();
-
-  if (commandName === 'oworeminders') return;
-
-  if (client.modules.has(commandName)) {
-    try {
-      await client.modules.get(commandName).execute(message, args);
-    } catch (err) {
-      console.error(`[COMMAND ERROR] Failure executing standard command ${commandName}:`, err);
-      message.reply('There was an error executing that command.').catch(() => {});
-    }
   }
 });
 

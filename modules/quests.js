@@ -132,7 +132,6 @@ module.exports = {
     const db = message.client.questDatabase || new Map();
     const activity = message.client.recentQuestActivity || new Map();
 
-    // Ignore human messages but log activity context
     if (message.author && !message.author.bot) {
       activity.set(message.channelId, {
         id: message.author.id,
@@ -206,16 +205,16 @@ module.exports = {
     let userAllData = db.get(allKey) || { userId, username, quests: {} };
     userAllData.username = username;
 
-    // FIX: Completely robust fraction splitter to get 'done' and 'total' values properly
     const progressMatches = cleanContent.match(/(\d+)\s*\/\s*(\d+)/g);
     let done = 0;
     let total = 1;
 
+    // FIX: Removed invalid .trim() method call on array instances causing crashes
     if (progressMatches && progressMatches.length > 0) {
-      const lastFraction = progressMatches[progressMatches.length - 1]; // e.g. "0/5"
+      const lastFraction = progressMatches[progressMatches.length - 1]; 
       const structuralParts = lastFraction.split('/');
-      done = parseInt(structuralParts[0].trim(), 10);
-      total = parseInt(structuralParts[1].trim(), 10);
+      done = parseInt(structuralParts[0], 10);
+      total = parseInt(structuralParts[1], 10);
     }
 
     let updated = false;

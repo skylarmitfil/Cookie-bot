@@ -166,16 +166,26 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    // Prevent matching cookie quests or "use an action" / "action command" instructions
-    if (lowerContent.includes('cookie') || lowerContent.includes('use an action') || lowerContent.includes('action command')) {
+    // Block cookie, boss, manual hunting, xp quests, and "use an action" / "action command"
+    if (
+      lowerContent.includes('cookie') || 
+      lowerContent.includes('boss') || 
+      lowerContent.includes('hunt') || 
+      lowerContent.includes('xp') || 
+      lowerContent.includes('experience') || 
+      lowerContent.includes('manual') ||
+      lowerContent.includes('use an action') || 
+      lowerContent.includes('action command')
+    ) {
       return null;
     }
 
-    const isTargetQuest = lowerContent.includes('pray') || lowerContent.includes('curse') || lowerContent.includes('receive an action') || lowerContent.includes('action');
+    const isTargetQuest = lowerContent.includes('pray') || lowerContent.includes('curse') || lowerContent.includes('receive an action');
     if (!isTargetQuest) return null;
 
     let userId = null;
     let username = 'user';
+    let helperId = null;
 
     if (message.interactionMetadata?.user) {
       userId = message.interactionMetadata.user.id;
@@ -186,6 +196,7 @@ module.exports = {
         if (repliedMsg && !repliedMsg.author.bot) {
           userId = repliedMsg.author.id;
           username = repliedMsg.author.username;
+          helperId = repliedMsg.author.id;
         }
       } catch (e) {}
     }
@@ -195,6 +206,7 @@ module.exports = {
       if (recentUser && Date.now() - recentUser.timestamp < 20000) {
         userId = recentUser.id;
         username = recentUser.username;
+        helperId = recentUser.id;
       }
     }
 
@@ -205,6 +217,7 @@ module.exports = {
         if (lastHumanMsg) {
           userId = lastHumanMsg.author.id;
           username = lastHumanMsg.author.username;
+          helperId = lastHumanMsg.author.id;
         }
       } catch (e) {}
     }
@@ -256,10 +269,26 @@ module.exports = {
       db.set(allKey, userAllData);
       db.set(userId, userAllData);
 
+      const isCompleted = done >= total || lowerContent.includes('complete') || lowerContent.includes('finished');
+
       try {
-        await message.channel.send(
-          `<:up:1532147975587893460> **Quest Tracked:** ${username} (${updatedType}) \`${userId}\` \`${done}/${total}\``
-        );
+        await message.react('1532147975587893460');
+      } catch (err) {
+        console.error('Failed to react to quest message:', err);
+      }
+
+      try {
+        let announcementText = `<:up:1532147975587893460> **Quest Tracked:** ${username} (${updatedType}) \`${userId}\` \`${done}/${total}\``;
+        
+        if (isCompleted) {
+          announcementText += ` 🎉 **Quest Completed!**`;
+          if (helperId && helperId !== userId) {
+            announcementText += ` (Helped by <@${helperId}>)`;
+          }
+          delete userAllData.quests[updatedType];
+        }
+
+        await message.channel.send(announcementText);
       } catch (err) {
         console.error('Failed to send quest notification:', err);
       }

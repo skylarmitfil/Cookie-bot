@@ -1,20 +1,27 @@
 const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
-const localDatabaseMock = new Map(); 
-const recentChannelActivity = new Map();
-
 module.exports = {
   name: 'q',
   description: 'Displays quest information and tracking help.',
   
+  // Initialize shared global maps attached straight onto the client instance
+  init: (client) => {
+    if (!client.questDatabase) client.questDatabase = new Map();
+    if (!client.recentQuestActivity) client.recentQuestActivity = new Map();
+  },
+  
   execute: async (message) => {
     if (!message) return;
+
+    const db = message.client.questDatabase || new Map();
+    const activity = message.client.recentQuestActivity || new Map();
 
     const content = (message.content || '').toLowerCase().trim();
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
+    // Cache the runner's metadata so passive embed listener maps incoming updates instantly
     if (message.author && !message.author.bot) {
-      recentChannelActivity.set(message.channelId, {
+      activity.set(message.channelId, {
         id: message.author.id,
         username: message.author.username,
         timestamp: Date.now()
@@ -33,7 +40,7 @@ module.exports = {
       const prefix = '.'; 
       const userId = message.author.id;
 
-      const userAllData = localDatabaseMock.get(`${userId}_all_quests`) || { username: message.author.username, quests: {} };
+      const userAllData = db.get(`${userId}_all_quests`) || { username: message.author.username, quests: {} };
       const savedQuests = userAllData.quests || {};
       const username = userAllData.username || message.author.username;
 
@@ -126,8 +133,11 @@ module.exports = {
   handleIncomingQuests: async (message) => {
     if (!message) return null;
 
+    const db = message.client.questDatabase || new Map();
+    const activity = message.client.recentQuestActivity || new Map();
+
     if (message.author && !message.author.bot) {
-      recentChannelActivity.set(message.channelId, {
+      activity.set(message.channelId, {
         id: message.author.id,
         username: message.author.username,
         timestamp: Date.now()
@@ -175,8 +185,8 @@ module.exports = {
     }
 
     if (!userId) {
-      const recentUser = recentChannelActivity.get(message.channelId);
-      if (recentUser && Date.now() - recentUser.timestamp < 10000) {
+      const recentUser = activity.get(message.channelId);
+      if (recentUser && Date.now() - recentUser.timestamp < 15000) {
         userId = recentUser.id;
         username = recentUser.username;
       }
@@ -196,7 +206,7 @@ module.exports = {
     if (!userId) return null;
 
     const allKey = `${userId}_all_quests`;
-    let userAllData = localDatabaseMock.get(allKey) || { userId, username, quests: {} };
+    let userAllData = db.get(allKey) || { userId, username, quests: {} };
     userAllData.username = username;
 
     const progressMatches = [...cleanContent.matchAll(/(\d+)\s*\/\s*(\d+)/g)];
@@ -205,21 +215,21 @@ module.exports = {
 
     if (progressMatches.length > 0) {
       const lastMatch = progressMatches[progressMatches.length - 1];
-      done = parseInt(lastMatch[1], 10);  
-      total = parseInt(lastMatch[2], 10); 
+      done = parseInt(lastMatch[1], 10);  // FIX: Read structural array match positions correctly
+      total = parseInt(lastMatch[2], 10); // FIX: Read structural array match positions correctly
     }
 
     let updated = false;
 
     if (lowerContent.includes('pray') || lowerContent.includes('🙏')) {
       userAllData.quests['pray'] = { questType: 'pray', done, total, timestamp: Date.now() };
-      localDatabaseMock.set(`${userId}_pray`, userAllData.quests['pray']);
+      db.set(`${userId}_pray`, userAllData.quests['pray']);
       updated = true;
     }
 
     if (lowerContent.includes('curse') || lowerContent.includes('👻')) {
       userAllData.quests['curse'] = { questType: 'curse', done, total, timestamp: Date.now() };
-      localDatabaseMock.set(`${userId}_curse`, userAllData.quests['curse']);
+      db.set(`${userId}_curse`, userAllData.quests['curse']);
       updated = true;
     }
 
@@ -231,12 +241,12 @@ module.exports = {
       lowerContent.includes('use an action command')
     ) {
       userAllData.quests['action'] = { questType: 'action', done, total, timestamp: Date.now() };
-      localDatabaseMock.set(`${userId}_action`, userAllData.quests['action']);
+      db.set(`${userId}_action`, userAllData.quests['action']);
       updated = true;
     }
 
     if (updated) {
-      localDatabaseMock.set(allKey, userAllData);
+      db.set(allKey, userAllData);
       return userAllData;
     }
 

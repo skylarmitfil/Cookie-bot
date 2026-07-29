@@ -4,7 +4,6 @@ module.exports = {
   name: 'q',
   description: 'Displays quest information and tracking help.',
   
-  // Initialize shared global maps attached straight onto the client instance
   init: (client) => {
     if (!client.questDatabase) client.questDatabase = new Map();
     if (!client.recentQuestActivity) client.recentQuestActivity = new Map();
@@ -19,7 +18,6 @@ module.exports = {
     const content = (message.content || '').toLowerCase().trim();
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
-    // Cache the runner's metadata so passive embed listener maps incoming updates instantly
     if (message.author && !message.author.bot) {
       activity.set(message.channelId, {
         id: message.author.id,
@@ -37,9 +35,7 @@ module.exports = {
     if (!isQuestCommand) return;
 
     try {
-      const prefix = '.'; 
       const userId = message.author.id;
-
       const userAllData = db.get(`${userId}_all_quests`) || { username: message.author.username, quests: {} };
       const savedQuests = userAllData.quests || {};
       const username = userAllData.username || message.author.username;
@@ -136,6 +132,7 @@ module.exports = {
     const db = message.client.questDatabase || new Map();
     const activity = message.client.recentQuestActivity || new Map();
 
+    // Ignore human messages but log activity context
     if (message.author && !message.author.bot) {
       activity.set(message.channelId, {
         id: message.author.id,
@@ -209,27 +206,27 @@ module.exports = {
     let userAllData = db.get(allKey) || { userId, username, quests: {} };
     userAllData.username = username;
 
-    const progressMatches = [...cleanContent.matchAll(/(\d+)\s*\/\s*(\d+)/g)];
+    // FIX: Completely robust fraction splitter to get 'done' and 'total' values properly
+    const progressMatches = cleanContent.match(/(\d+)\s*\/\s*(\d+)/g);
     let done = 0;
     let total = 1;
 
-    if (progressMatches.length > 0) {
-      const lastMatch = progressMatches[progressMatches.length - 1];
-      done = parseInt(lastMatch[1], 10);  // FIX: Read structural array match positions correctly
-      total = parseInt(lastMatch[2], 10); // FIX: Read structural array match positions correctly
+    if (progressMatches && progressMatches.length > 0) {
+      const lastFraction = progressMatches[progressMatches.length - 1]; // e.g. "0/5"
+      const structuralParts = lastFraction.split('/');
+      done = parseInt(structuralParts[0].trim(), 10);
+      total = parseInt(structuralParts[1].trim(), 10);
     }
 
     let updated = false;
 
     if (lowerContent.includes('pray') || lowerContent.includes('🙏')) {
       userAllData.quests['pray'] = { questType: 'pray', done, total, timestamp: Date.now() };
-      db.set(`${userId}_pray`, userAllData.quests['pray']);
       updated = true;
     }
 
     if (lowerContent.includes('curse') || lowerContent.includes('👻')) {
       userAllData.quests['curse'] = { questType: 'curse', done, total, timestamp: Date.now() };
-      db.set(`${userId}_curse`, userAllData.quests['curse']);
       updated = true;
     }
 
@@ -241,7 +238,6 @@ module.exports = {
       lowerContent.includes('use an action command')
     ) {
       userAllData.quests['action'] = { questType: 'action', done, total, timestamp: Date.now() };
-      db.set(`${userId}_action`, userAllData.quests['action']);
       updated = true;
     }
 

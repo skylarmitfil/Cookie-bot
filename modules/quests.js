@@ -182,7 +182,7 @@ module.exports = {
 
     if (!userId) {
       const recentUser = activity.get(message.channelId);
-      if (recentUser && Date.now() - recentUser.timestamp < 15000) {
+      if (recentUser && Date.now() - recentUser.timestamp < 20000) {
         userId = recentUser.id;
         username = recentUser.username;
       }
@@ -205,27 +205,28 @@ module.exports = {
     let userAllData = db.get(allKey) || { userId, username, quests: {} };
     userAllData.username = username;
 
-    const progressMatches = cleanContent.match(/(\d+)\s*\/\s*(\d+)/g);
+    // FIX: Safely parse progress using destructuring to prevent markdown truncation
+    const allMatches = [...cleanContent.matchAll(/(\d+)\s*\/\s*(\d+)/g)];
     let done = 0;
     let total = 1;
 
-    // FIX: Removed invalid .trim() method call on array instances causing crashes
-    if (progressMatches && progressMatches.length > 0) {
-      const lastFraction = progressMatches[progressMatches.length - 1]; 
-      const structuralParts = lastFraction.split('/');
-      done = parseInt(structuralParts[0], 10);
-      total = parseInt(structuralParts[1], 10);
+    if (allMatches.length > 0) {
+      const lastMatch = allMatches.pop();
+      const doneStr = lastMatch.at(1);
+      const totalStr = lastMatch.at(2);
+      done = parseInt(doneStr || '0', 10);
+      total = parseInt(totalStr || '1', 10);
     }
 
     let updated = false;
 
     if (lowerContent.includes('pray') || lowerContent.includes('🙏')) {
-      userAllData.quests['pray'] = { questType: 'pray', done, total, timestamp: Date.now() };
+      userAllData.quests.pray = { questType: 'pray', done, total, timestamp: Date.now() };
       updated = true;
     }
 
     if (lowerContent.includes('curse') || lowerContent.includes('👻')) {
-      userAllData.quests['curse'] = { questType: 'curse', done, total, timestamp: Date.now() };
+      userAllData.quests.curse = { questType: 'curse', done, total, timestamp: Date.now() };
       updated = true;
     }
 
@@ -236,7 +237,7 @@ module.exports = {
       lowerContent.includes('action command') ||
       lowerContent.includes('use an action command')
     ) {
-      userAllData.quests['action'] = { questType: 'action', done, total, timestamp: Date.now() };
+      userAllData.quests.action = { questType: 'action', done, total, timestamp: Date.now() };
       updated = true;
     }
 

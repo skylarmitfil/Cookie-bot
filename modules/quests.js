@@ -22,10 +22,33 @@ module.exports = {
 
     try {
       const prefix = '.'; 
+      const userId = message.author.id;
 
-      const allText = `### Quests\n\n` +
-                      `**All Quests:**\n` +
-                      `┃ \`${prefix}q all\` — View all available quests and progress`;
+      const userAllData = localDatabaseMock.get(`${userId}_all_quests`) || { quests: {} };
+      const savedQuests = userAllData.quests || {};
+
+      const hasPray = Boolean(savedQuests.pray);
+      const hasCurse = Boolean(savedQuests.curse);
+      const hasAction = Boolean(savedQuests.action);
+      const hasAnyQuest = hasPray || hasCurse || hasAction;
+
+      let allText = `### Quests\n\n`;
+
+      if (hasAnyQuest) {
+        if (hasPray) {
+          allText += `**Pray Quests:**\n┃ \`${prefix}q pray\` — View your pray quest status\n\n`;
+        }
+        if (hasCurse) {
+          allText += `**Curse Quests:**\n┃ \`${prefix}q curse\` — View your curse quest status\n\n`;
+        }
+        if (hasAction) {
+          allText += `**Action Quests:**\n┃ \`${prefix}q action\` — View your action quest status\n\n`;
+        }
+        allText = allText.trimEnd();
+      } else {
+        allText += `**All Quests:**\n` +
+                   `┃ \`${prefix}q all\` — View all available quests and progress`;
+      }
 
       const prayText = `### Quests\n\n` +
                        `**Pray Quests:**\n` +
@@ -170,7 +193,6 @@ module.exports = {
         userAllData.quests[questType] = questData;
         localDatabaseMock.set(allKey, userAllData);
 
-        console.log(`[Quest Tracker] Saved specific quest (${questType}) for ${questData.username}`);
         return questData;
       } catch (err) {
         console.error('Error parsing single quest log:', err);
@@ -212,8 +234,6 @@ module.exports = {
           userAllData.quests[questType] = questData;
           localDatabaseMock.set(allKey, userAllData);
         }
-
-        console.log(`[Quest Tracker] Saved overview quest (${questType}) for user ${username}`);
       } catch (err) {
         console.error('Error parsing overview quest log:', err);
       }

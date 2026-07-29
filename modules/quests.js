@@ -12,17 +12,11 @@ module.exports = {
     const content = (message.content || '').toLowerCase().trim();
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
-    const owoQuestRegex = /^(owo\s+q|owo\s+quest|w\s+q|wq|w\s+quest)$/;
-
     const isQuestCommand = 
       slashName === 'q' ||
       slashName === 'quest' ||
       content === '.q' ||
-      content === '.quest' ||
-      content === 'q' ||
-      content === 'quest' ||
-      /^[!#./\\?]\s*(q|quest)$/.test(content) ||
-      owoQuestRegex.test(content); 
+      content === '.quest';
 
     if (!isQuestCommand) return;
 
@@ -127,36 +121,104 @@ module.exports = {
   },
 
   handleIncomingQuests: async (message) => {
-    if (!message || !message.content) return null;
+    if (!message) return null;
 
-    const cleanContent = message.content.replace(/\s+/g, ' ').trim();
-
-    const questParserRegex = /(Pray|Curse|Action)\s*Quests\s*—\s*(\d+\/\d+)\s*total\s*#1\s*(?:\[(\d+)\])?\s*([^\s]+)\s*(\d{17,20})\s*—\s*(\d+\/\d+)\s*\((\d+)%\)/i;
-
-    const match = cleanContent.match(questParserRegex);
-    if (!match) return null;
-
-    try {
-      const questData = {
-        questType: match[1].toLowerCase(),
-        globalProgress: match[2],
-        bracketId: match[3] || null,
-        username: match[4],
-        userId: match[5],
-        userProgress: match[6],
-        percentage: parseInt(match[7], 10),
-        timestamp: Date.now()
-      };
-
-      const dbKey = `${questData.userId}_${questData.questType}`;
-      localDatabaseMock.set(dbKey, questData);
-
-      console.log(`[Quest Tracker] Saved update for ${questData.username} (${questData.questType}):`, questData);
-      return questData;
-
-    } catch (err) {
-      console.error('Error occurred while tracking background quest log transmission payload data:', err);
-      return null;
+    let textToCheck = message.content || '';
+    if (message.embeds && message.embeds.length > 0) {
+      for (const embed of message.embeds) {
+        if (embed.description) textToCheck += '\n' + embed.description;
+        if (embed.title) textToCheck += '\n' + embed.title;
+        if (embed.fields) {
+          for (const field of embed.fields) {
+            textToCheck += `\n${field.name} ${field.value}`;
+          }
+        }
+      }
     }
+
+    if (!textToCheck) return null;
+
+    const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
+
+    const singleQuestRegex = /(?:([a-zA-Z]+)\s*Quests?|Quest[:\s]*([a-zA-Z]+))\s*—\s*(\d+\/\d+)\s*total\s*#(\d+)\s*(?:\[(\d+)\])?\s*([^\s]+)\s*(\d{17,20})\s*—\s*(\d+\/\d+)\s*\((\d+)%\)/i;
+    const match = cleanContent.match(singleQuestRegex);
+
+    if (match) {
+      try {
+        const questType = (match[1] || match[2]).toLowerCase();
+        const questData = {
+          questType,
+          globalProgress: match[3],
+          rankNumber: match[4],
+          bracketId: match[5] || null,
+          username: match[6],
+          userId: match[7],
+          userProgress: match[8],
+          percentage: parseInt(match[9], 10),
+          timestamp: Date.now()
+        };
+
+        const dbKey = `${questData.userId}_${questData.questType}`;
+        const allKey = `${questData.userId}_all_quests`;
+
+        localDatabaseMock.set(dbKey, questData);
+
+        let userAllData = localDatabaseMock.get(allKey);
+        if (!userAllData) {
+          userAllData = { userId: questData.userId, username: questData.username, quests: {} };
+        }
+        userAllData.quests[questType] = questData;
+        localDatabaseMock.set(allKey, userAllData);
+
+        console.log(`[Quest Tracker] Saved specific quest (${questType}) for ${questData.username}`);
+        return questData;
+      } catch (err) {
+        console.error('Error parsing single quest log:', err);
+      }
+    }
+
+    const multiLineRegex = /(Pray|Curse|Action|Hunt|Battle|Gambling|Slot|Coinflip|Vote|Cookie|OwO)\s*[:\-]?\s*(\d+\/\d+)/gi;
+    let multiMatch;
+    let foundAny = false;
+    const userIdMatch = cleanContent.match(/\b(\d{17,20})\b/) || message.mentions?.users?.first()?.id;
+    const usernameMatch = cleanContent.match(/#1\s*(?:\[\d+\])?\s*([^\s]+)/) || message.author?.username;
+
+    while ((multiMatch = multiLineRegex.exec(cleanContent)) !== null) {
+      foundAny = true;
+      try {
+        const questType = multiMatch[1].toLowerCase();
+        const progress = multiMatch[2];
+        const userId = typeof userIdMatch === 'string' ? userIdMatch : (userIdMatch ? userIdMatch[1] : 'unknown');
+        const username = Array.isArray(usernameMatch) ? usernameMatch[1] : usernameMatch;
+
+        const questData = {
+          questType,
+          userProgress: progress,
+          username,
+          userId,
+          timestamp: Date.now()
+        };
+
+        if (userId !== 'unknown') {
+          const dbKey = `${userId}_${questType}`;
+          const allKey = `${userId}_all_quests`;
+
+          localDatabaseMock.set(dbKey, questData);
+
+          let userAllData = localDatabaseMock.get(allKey);
+          if (!userAllData) {
+            userAllData = { userId, username, quests: {} };
+          }
+          userAllData.quests[questType] = questData;
+          localDatabaseMock.set(allKey, userAllData);
+        }
+
+        console.log(`[Quest Tracker] Saved overview quest (${questType}) for user ${username}`);
+      } catch (err) {
+        console.error('Error parsing overview quest log:', err);
+      }
+    }
+
+    return foundAny ? true : null;
   }
 };

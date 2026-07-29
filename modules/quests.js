@@ -166,7 +166,12 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    const isTargetQuest = lowerContent.includes('pray') || lowerContent.includes('curse') || lowerContent.includes('action') || lowerContent.includes('quest');
+    // Prevent matching cookie quests or "use an action" / "action command" instructions
+    if (lowerContent.includes('cookie') || lowerContent.includes('use an action') || lowerContent.includes('action command')) {
+      return null;
+    }
+
+    const isTargetQuest = lowerContent.includes('pray') || lowerContent.includes('curse') || lowerContent.includes('receive an action') || lowerContent.includes('action');
     if (!isTargetQuest) return null;
 
     let userId = null;
@@ -239,11 +244,8 @@ module.exports = {
     }
 
     if (
-      lowerContent.includes('action') || 
-      lowerContent.includes('🎭') || 
-      lowerContent.includes('receive an action from a friend') ||
-      lowerContent.includes('action command') ||
-      lowerContent.includes('use an action command')
+      lowerContent.includes('receive an action') || 
+      (lowerContent.includes('action') && !lowerContent.includes('use an action') && !lowerContent.includes('action command'))
     ) {
       userAllData.quests.action = { questType: 'action', done, total, timestamp: Date.now() };
       updated = true;

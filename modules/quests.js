@@ -9,7 +9,7 @@ module.exports = {
     if (!client.recentQuestActivity) client.recentQuestActivity = new Map();
   },
   
-  execute: async (message) => {
+  execute: async (message, args = []) => {
     if (!message) return;
 
     const db = message.client.questDatabase || new Map();
@@ -224,15 +224,18 @@ module.exports = {
     }
 
     let updated = false;
+    let updatedType = '';
 
     if (lowerContent.includes('pray') || lowerContent.includes('🙏')) {
       userAllData.quests.pray = { questType: 'pray', done, total, timestamp: Date.now() };
       updated = true;
+      updatedType = 'pray';
     }
 
     if (lowerContent.includes('curse') || lowerContent.includes('👻')) {
       userAllData.quests.curse = { questType: 'curse', done, total, timestamp: Date.now() };
       updated = true;
+      updatedType = 'curse';
     }
 
     if (
@@ -244,11 +247,21 @@ module.exports = {
     ) {
       userAllData.quests.action = { questType: 'action', done, total, timestamp: Date.now() };
       updated = true;
+      updatedType = 'action';
     }
 
     if (updated) {
       db.set(allKey, userAllData);
       db.set(userId, userAllData);
+
+      try {
+        await message.channel.send(
+          `<:up:1532147975587893460> **Quest Tracked:** ${username} (${updatedType}) \`${userId}\` \`${done}/${total}\``
+        );
+      } catch (err) {
+        console.error('Failed to send quest notification:', err);
+      }
+
       return userAllData;
     }
 

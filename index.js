@@ -83,8 +83,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.MessageCreate, async (message) => {
   if (!message) return;
 
+  // Safely ensure global maps exist
+  if (!client.questDatabase) client.questDatabase = new Map();
+  if (!client.recentQuestActivity) client.recentQuestActivity = new Map();
+
   // Track active user context before bot filters trigger
-  if (message.author && !message.author.bot && client.recentQuestActivity) {
+  if (message.author && !message.author.bot) {
     client.recentQuestActivity.set(message.channelId, {
       id: message.author.id,
       username: message.author.username,

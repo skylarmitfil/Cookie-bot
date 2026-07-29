@@ -46,7 +46,7 @@ module.exports = {
         }
         allText = allText.trimEnd();
       } else {
-        // Updated default text when no quests are active, removing the bottom `.q all` description info
+        // Bottom part completely removed / simplified as requested
         allText += `**All Quests:**\n┃ No active quests tracked yet.`;
       }
 
@@ -151,6 +151,8 @@ module.exports = {
       for (const embed of message.embeds) {
         if (embed.description) textToCheck += '\n' + embed.description;
         if (embed.title) textToCheck += '\n' + embed.title;
+        if (embed.footer && embed.footer.text) textToCheck += '\n' + embed.footer.text;
+        if (embed.author && embed.author.name) textToCheck += '\n' + embed.author.name;
         if (embed.fields) {
           for (const field of embed.fields) {
             textToCheck += `\n${field.name} ${field.value}`;
@@ -164,15 +166,23 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    // Enhanced OwO bot embed user extraction fallback for component / message listeners
-    let userId = message.author?.id;
-    if (!userId || message.author.bot) {
-      const matchId = cleanContent.match(/\b(\d{17,20})\b/);
-      if (matchId) userId = matchId[1];
+    // Fix: OwO embeds don't always tag or set message.author to the user.
+    // We parse user IDs from mentions, interaction metadata, or footer fields.
+    let userId = message.author && !message.author.bot ? message.author.id : null;
+
+    if (!userId && message.interaction && message.interaction.user) {
+      userId = message.interaction.user.id;
     }
+
     if (!userId && message.mentions?.users?.first()) {
       userId = message.mentions.users.first().id;
     }
+
+    if (!userId) {
+      const matchId = cleanContent.match(/\b(\d{17,20})\b/);
+      if (matchId) userId = matchId[1];
+    }
+
     if (!userId) return null;
 
     const username = message.author?.username || 'user';
@@ -184,7 +194,7 @@ module.exports = {
 
     let updated = false;
 
-    // Check for OwO quest indicators and parse properly into acceptable types
+    // Expanded matching to catch OwO quest text variations accurately
     if (lowerContent.includes('pray') || lowerContent.includes('🙏')) {
       userAllData.quests['pray'] = { questType: 'pray', timestamp: Date.now() };
       localDatabaseMock.set(`${userId}_pray`, userAllData.quests['pray']);
@@ -197,7 +207,13 @@ module.exports = {
       updated = true;
     }
 
-    if (lowerContent.includes('action') || lowerContent.includes('🎭') || lowerContent.includes('receive an action from a friend')) {
+    if (
+      lowerContent.includes('action') || 
+      lowerContent.includes('🎭') || 
+      lowerContent.includes('receive an action from a friend') ||
+      lowerContent.includes('action command') ||
+      lowerContent.includes('use an action command')
+    ) {
       userAllData.quests['action'] = { questType: 'action', timestamp: Date.now() };
       localDatabaseMock.set(`${userId}_action`, userAllData.quests['action']);
       updated = true;

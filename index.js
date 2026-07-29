@@ -47,7 +47,7 @@ client.once(Events.ClientReady, async () => {
           description: 'Manage custom OwO reminder settings'
         }
       ]);
-      console.log('✨ Successfully registered /reminder to your guild and cleared old ghost commands.');
+      console.log('✨ Successfully registered /reminder command.');
     }
   } catch (err) {
     console.error('Failed to register guild commands:', err);

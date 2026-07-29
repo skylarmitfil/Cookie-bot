@@ -205,7 +205,6 @@ module.exports = {
     let userAllData = db.get(allKey) || { userId, username, quests: {} };
     userAllData.username = username;
 
-    // FIX: Safely parse progress using destructuring to prevent markdown truncation
     const allMatches = [...cleanContent.matchAll(/(\d+)\s*\/\s*(\d+)/g)];
     let done = 0;
     let total = 1;

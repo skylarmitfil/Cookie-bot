@@ -83,6 +83,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.MessageCreate, async (message) => {
   if (!message) return;
 
+  // FIX: Run activity caching first so passive scanning maps things perfectly
+  if (message.author && !message.author.bot && client.recentQuestActivity) {
+    client.recentQuestActivity.set(message.channelId, {
+      id: message.author.id,
+      username: message.author.username,
+      timestamp: Date.now()
+    });
+  }
+
   if (!message.author?.bot) {
     const reminderMod = client.modules.get('oworeminders');
     if (reminderMod && typeof reminderMod.execute === 'function') {

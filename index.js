@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -7,66 +7,162 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
   ]
 });
 
-client.modules = new Collection();
+client.modules = new Map();
+client.questDatabase = new Map();
+client.recentQuestActivity = new Map();
 
-// Load modules from the 'modules' folder
-const modulesPath = path.join(__dirname, 'modules');
+const modulesPath = path.resolve(__dirname, 'modules');
 if (fs.existsSync(modulesPath)) {
-  const moduleFiles = fs.readdirSync(modulesPath).filter(file => file.endsWith('.js'));
-  for (const file of moduleFiles) {
-    const filePath = path.join(modulesPath, file);
-    const mod = require(filePath);
-    if (mod.name) {
-      client.modules.set(mod.name, mod);
-      // Run init if available
-      if (typeof mod.init === 'function') {
-        mod.init(client);
+  fs.readdirSync(modulesPath)
+    .filter(file => file.endsWith('.js'))
+    .forEach(file => {
+      try {
+        const mod = require(path.join(modulesPath, file));
+        if (mod && mod.name) {
+          client.modules.set(mod.name.toLowerCase(), mod);
+          if (typeof mod.init === 'function') {
+            mod.init(client);
+          }
+          console.log(`📦 Loaded: ${mod.name}`);
+        }
+      } catch (err) {
+        console.error(`📦⛔️ Failed to load ${file}:`, err);
       }
-      console.log(`Loaded module: ${mod.name}`);
-    }
-  }
+    });
 }
 
-client.on('ready', () => {
-  console.log(`Logged in as ${client.user.tag}!`);
+client.once(Events.ClientReady, async () => {
+  console.log(`<Active> Logged in as ${client.user.tag}`);
+
+  try {
+    const guildId = '1518659728677277826';
+    const guild = await client.guilds.fetch(guildId);
+
+    if (guild) {
+      await guild.commands.set([
+        {
+          name: 'reminder',
+          description: 'Manage custom OwO reminder settings'
+        }
+      ]);
+      console.log('✨ Successfully registered /reminder command.');
+    }
+  } catch (err) {
+    console.error('Failed to register guild commands:', err);
+  }
 });
 
-client.on('messageCreate', async (message) => {
-  // 1. Background listener for incoming OwO quest messages & notifications
-  if (client.modules) {
-    for (const mod of client.modules.values()) {
-      if (typeof mod.handleIncomingQuests === 'function') {
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName === 'reminder') {
+    const reminderMod = client.modules.get('reminder');
+    if (reminderMod && typeof reminderMod.execute === 'function') {
+      const mockMessage = {
+        author: interaction.user,
+        client: interaction.client,
+        channel: interaction.channel,
+        guild: interaction.guild,
+        reply: async (options) => {
+          if (interaction.replied || interaction.deferred) {
+            return interaction.followUp(options);
+          }
+          return interaction.reply(options);
+        }
+      };
+
+      await reminderMod.execute(mockMessage, []);
+    } else {
+      await interaction.reply({ content: '❌ Reminder module is not loaded correctly.', ephemeral: true });
+    }
+  }
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  if (!message) return;
+
+  // Safely ensure global maps exist
+  if (!client.questDatabase) client.questDatabase = new Map();
+  if (!client.recentQuestActivity) client.recentQuestActivity = new Map();
+
+  // Track active user context before bot filters trigger
+  if (message.author && !message.author.bot) {
+    client.recentQuestActivity.set(message.channelId, {
+      id: message.author.id,
+      username: message.author.username,
+      timestamp: Date.now()
+    });
+  }
+
+  if (!message.author?.bot) {
+    const reminderMod = client.modules.get('oworeminders');
+    if (reminderMod && typeof reminderMod.execute === 'function') {
+      reminderMod.execute(message).catch(err => {
+        console.error('[PASSIVE MODULE ERROR] owoReminders failure:', err);
+      });
+    }
+  }
+
+  const goalMod = client.modules.get('goal');
+  if (goalMod && typeof goalMod.handleMessage === 'function') {
+    goalMod.handleMessage(message).catch(err => {
+      console.error('[PASSIVE MODULE ERROR] goal handleMessage failure:', err);
+    });
+  }
+
+  const questMod = client.modules.get('q');
+  if (questMod && typeof questMod.handleIncomingQuests === 'function') {
+    questMod.handleIncomingQuests(message)
+      .then(data => {
+        if (data) console.log(`🟢 Successfully tracked quest for: ${data.username}`);
+      })
+      .catch(err => {
+        console.error('[PASSIVE MODULE ERROR] quest handleIncomingQuests failure:', err);
+      });
+  }
+
+  if (message.author?.bot) return;
+
+  const prefix = '.';
+  const content = message.content.trim();
+
+  if (!content.startsWith(prefix)) {
+    const spaceIndex = content.indexOf(' ');
+    const firstWord = (spaceIndex === -1 ? content : content.slice(0, spaceIndex)).toLowerCase();
+    
+    if (firstWord === 'owo' || firstWord === 'w') {
+      const subArgs = spaceIndex === -1 ? [] : content.slice(spaceIndex + 1).trim().split(/ +/);
+      const subCommand = subArgs.shift()?.toLowerCase();
+      
+      if (subCommand && client.modules.has(subCommand)) {
         try {
-          await mod.handleIncomingQuests(message);
+          await client.modules.get(subCommand).execute(message, subArgs);
+          return;
         } catch (err) {
-          console.error(`Error in handleIncomingQuests for module ${mod.name}:`, err);
+          console.error(`[COMMAND ERROR] Failure executing owo command ${subCommand}:`, err);
         }
       }
     }
+    return;
   }
 
-  // 2. Ignore other bot messages for normal command processing
-  if (message.author.bot) return;
+  const args = content.slice(prefix.length).trim().split(/ +/);
+  const commandName = args.shift().toLowerCase();
 
-  const content = message.content.trim();
-  const args = content.split(/ +/);
-  const firstWord = args.shift()?.toLowerCase();
+  if (commandName === 'oworeminders') return;
 
-  // 3. Handle prefix commands (like .q or other modules)
-  if (content.startsWith('.')) {
-    const cmdName = content.slice(1).trim().split(/ +/)[0].toLowerCase();
-    if (client.modules.has(cmdName)) {
-      try {
-        await client.modules.get(cmdName).execute(message, args);
-      } catch (err) {
-        console.error(`Error executing command ${cmdName}:`, err);
-      }
+  if (client.modules.has(commandName)) {
+    try {
+      await client.modules.get(commandName).execute(message, args);
+    } catch (err) {
+      console.error(`[COMMAND ERROR] Failure executing standard command ${commandName}:`, err);
+      message.reply('There was an error executing that command.').catch(() => {});
     }
   }
 });
 
-// Replace with your bot token or environment variable
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN || process.env.TOKEN);

@@ -83,7 +83,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.MessageCreate, async (message) => {
   if (!message) return;
 
-  // Track active user context before bot filters trigger
   if (message.author && !message.author.bot && client.recentQuestActivity) {
     client.recentQuestActivity.set(message.channelId, {
       id: message.author.id,

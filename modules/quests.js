@@ -343,7 +343,7 @@ module.exports = {
       db.set(allKey, userAllData);
       db.set(userId, userAllData);
 
-      const isCompleted = lastDone >= lastTotal || lowerContent.includes('complete') || lowerContent.includes('finished');
+      const isCompleted = lastTotal > 0 && lastDone >= lastTotal;
 
       try {
         await message.react('1532147975587893460');

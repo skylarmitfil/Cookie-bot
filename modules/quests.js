@@ -1,8 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
-const COMPONENTS_V2_FLAG = 32768; // MessageFlags.IsComponentsV2 (1 << 15)
+const COMPONENTS_V2_FLAG = 32768;
+const OWO_BOT_ID = '408785106942115840';
 
-// Recursively pull all text out of a Components V2 message tree.
 function extractComponentsText(components, acc = []) {
   if (!Array.isArray(components)) return acc;
   for (const comp of components) {
@@ -21,7 +21,33 @@ function extractComponentsText(components, acc = []) {
   return acc;
 }
 
-// Build the Components V2 payload for a given target user + selected view.
+function incrementQuest(db, userId, username, type) {
+    const key = `${userId}_all_quests`;
+    const data = db.get(key) || db.get(userId) || {
+        userId,
+        username,
+        quests: {}
+    };
+
+    const quest = data.quests[type];
+    if (!quest) return false;
+
+    if (quest.done < quest.total) {
+        quest.done++;
+        quest.timestamp = Date.now();
+
+        if (quest.done > quest.total) {
+            quest.done = quest.total;
+        }
+
+        db.set(key, data);
+        db.set(userId, data);
+        return true;
+    }
+
+    return false;
+}
+
 function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'all_quests', disabled = false) {
   const allKey = `${targetUserId}_all_quests`;
   const userAllData = db.get(allKey) || db.get(targetUserId) || { userId: targetUserId, username: fallbackUsername, quests: {} };
@@ -95,6 +121,7 @@ module.exports = {
   description: 'Displays quest information and tracking help.',
 
   buildQuestPayload,
+  incrementQuest,
 
   init: (client) => {
     if (!client.questDatabase) client.questDatabase = new Map();
@@ -128,11 +155,14 @@ module.exports = {
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
     if (message.author && !message.author.bot) {
-      activity.set(message.channelId, {
-        id: message.author.id,
-        username: message.author.username,
-        timestamp: Date.now()
-      });
+      const lowCont = message.content.toLowerCase();
+      if (lowCont.includes("owo") || lowCont.includes("uwu") || lowCont.startsWith("w")) {
+        activity.set(message.channelId, {
+          id: message.author.id,
+          username: message.author.username,
+          timestamp: Date.now()
+        });
+      }
     }
 
     const isQuestCommand =
@@ -164,18 +194,19 @@ module.exports = {
     const activity = message.client.recentQuestActivity || new Map();
 
     if (message.author && !message.author.bot) {
-      activity.set(message.channelId, {
-        id: message.author.id,
-        username: message.author.username,
-        timestamp: Date.now()
-      });
+      const lowCont = message.content.toLowerCase();
+      if (lowCont.includes("owo") || lowCont.includes("uwu") || lowCont.startsWith("w")) {
+        activity.set(message.channelId, {
+          id: message.author.id,
+          username: message.author.username,
+          timestamp: Date.now()
+        });
+      }
       return null;
     }
 
     if (!message.author || !message.author.bot) return null;
 
-    // Never react to our OWN messages — our "Quest Tracked ... 0/3" announcement
-    // itself contains a progress pattern, which would cause an infinite loop.
     if (message.client.user && message.author.id === message.client.user.id) return null;
 
     let textToCheck = message.content || '';
@@ -193,7 +224,6 @@ module.exports = {
       }
     }
 
-    // Components V2 messages carry their text inside `message.components`.
     if (message.components && message.components.length > 0) {
       const parts = extractComponentsText(message.components);
       if (parts.length) textToCheck += '\n' + parts.join('\n');
@@ -204,19 +234,89 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    const hasProgress = /\d+\s*\/\s*\d+/.test(cleanContent);
-    const isQuestLog = lowerContent.includes('quest log') || lowerContent.includes('quest seals') || hasProgress;
-
-    if (!isQuestLog) return null;
-
     let userId = null;
     let username = 'user';
-    let helperId = null;
 
     if (message.interactionMetadata?.user) {
       userId = message.interactionMetadata.user.id;
       username = message.interactionMetadata.user.username;
     }
+
+    if (!userId && message.reference) {
+      try {
+        const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+        if (repliedMsg && !repliedMsg.author.bot) {
+          userId = repliedMsg.author.id;
+          username = repliedMsg.author.username;
+        }
+      } catch (e) {}
+    }
+
+    if (!userId) {
+      const recentUser = activity.get(message.channelId);
+      if (recentUser && Date.now() - recentUser.timestamp < 120000) {
+        userId = recentUser.id;
+        username = recentUser.username;
+      }
+    }
+
+    if (!userId) return null;
+
+    const isOwOBot = message.author.id === OWO_BOT_ID;
+    const actionWords = [
+      "hug", "pat", "kiss", "cuddle", "slap", "poke", "lick",
+      "nom", "bite", "highfive", "tickle", "handhold", "handholding",
+      "snuggle", "boop", "wave", "punch", "hold", "dance", "cry",
+      "smile", "blush", "stare", "feed"
+    ];
+
+    const isAction = actionWords.some(word =>
+        lowerContent.includes(word) &&
+        (
+            lowerContent.includes("you") ||
+            lowerContent.includes("hug") ||
+            lowerContent.includes("kiss") ||
+            lowerContent.includes("cuddle")
+        )
+    );
+
+    let incremented = false;
+
+    if (isOwOBot && (
+        lowerContent.includes("you prayed") ||
+        lowerContent.includes("you pray")
+    )) {
+        incremented = incrementQuest(db, userId, username, "pray") || incremented;
+    }
+
+    if (isOwOBot && (
+        lowerContent.includes("you cursed") ||
+        lowerContent.includes("you curse")
+    )) {
+        incremented = incrementQuest(db, userId, username, "curse") || incremented;
+    }
+
+    if (isOwOBot && isAction) {
+        incremented = incrementQuest(db, userId, username, "action") || incremented;
+    }
+
+    if (incremented) {
+      try {
+        await message.react('1532147975587893460');
+      } catch (err) {
+        console.error('Failed to react to action message:', err);
+      }
+
+      const allKey = `${userId}_all_quests`;
+      return db.get(allKey);
+    }
+
+    const hasProgress = /\d+\s*\/\s*\d+/.test(cleanContent);
+    const isQuestLog = lowerContent.includes('quest log') || lowerContent.includes('quest seals') || hasProgress;
+
+    if (!isQuestLog) return null;
+
+    let helperId = null;
 
     if (!userId && message.embeds && message.embeds.length > 0) {
       for (const embed of message.embeds) {
@@ -236,26 +336,6 @@ module.exports = {
             }
           }
         }
-      }
-    }
-
-    if (!userId && message.reference) {
-      try {
-        const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
-        if (repliedMsg && !repliedMsg.author.bot) {
-          userId = repliedMsg.author.id;
-          username = repliedMsg.author.username;
-          helperId = repliedMsg.author.id;
-        }
-      } catch (e) {}
-    }
-
-    if (!userId) {
-      const recentUser = activity.get(message.channelId);
-      if (recentUser && Date.now() - recentUser.timestamp < 120000) {
-        userId = recentUser.id;
-        username = recentUser.username;
-        helperId = recentUser.id;
       }
     }
 
@@ -359,7 +439,6 @@ module.exports = {
           if (helperId && helperId !== userId) {
             announcementText += ` (Helped by <@${helperId}>)`;
           }
-          delete userAllData.quests[lastUpdatedType];
         }
 
         await message.channel.send(announcementText);

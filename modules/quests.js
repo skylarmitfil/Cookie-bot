@@ -166,13 +166,11 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    // Ensure the message has an actual numeric progress ratio (e.g., 0/1, 1/3) before treating it as a quest update
     const progressMatch = cleanContent.match(/(\d+)\s*\/\s*(\d+)/);
     if (!progressMatch) {
       return null;
     }
 
-    // Block cookie, boss, manual hunting, xp quests, and "use an action" / "action command"
     if (
       lowerContent.includes('cookie') || 
       lowerContent.includes('boss') || 
@@ -186,7 +184,15 @@ module.exports = {
       return null;
     }
 
-    const isTargetQuest = lowerContent.includes('pray') || lowerContent.includes('curse') || lowerContent.includes('receive an action');
+    const isTargetQuest = 
+      lowerContent.includes('pray') || 
+      lowerContent.includes('curse') || 
+      lowerContent.includes('action') ||
+      lowerContent.includes('receive pray') || 
+      lowerContent.includes('receive curse') || 
+      lowerContent.includes('receive action') ||
+      lowerContent.includes('receive an action');
+
     if (!isTargetQuest) return null;
 
     let userId = null;
@@ -255,6 +261,7 @@ module.exports = {
 
     if (
       lowerContent.includes('receive an action') || 
+      lowerContent.includes('receive action') ||
       (lowerContent.includes('action') && !lowerContent.includes('use an action') && !lowerContent.includes('action command'))
     ) {
       userAllData.quests.action = { questType: 'action', done, total, timestamp: Date.now() };

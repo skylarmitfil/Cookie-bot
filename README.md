@@ -2,4 +2,7 @@
 
 This project was developed independently and does not incorporate code, forks, or content from any other repositories.
 
-**help.js** now has a __v2 component__ allowing the drop down to be inside the embed itself.
+**help.js** now has a __v2 component__ allowing the drop down to be inside the embed itself. Jul. 28. 2026
+
+
+*

@@ -166,6 +166,12 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
+    // Ensure the message has an actual numeric progress ratio (e.g., 0/1, 1/3) before treating it as a quest update
+    const progressMatch = cleanContent.match(/(\d+)\s*\/\s*(\d+)/);
+    if (!progressMatch) {
+      return null;
+    }
+
     // Block cookie, boss, manual hunting, xp quests, and "use an action" / "action command"
     if (
       lowerContent.includes('cookie') || 
@@ -229,17 +235,8 @@ module.exports = {
     userAllData.userId = userId;
     userAllData.username = username;
 
-    const allMatches = [...cleanContent.matchAll(/(\d+)\s*\/\s*(\d+)/g)];
-    let done = 0;
-    let total = 1;
-
-    if (allMatches.length > 0) {
-      const lastMatch = allMatches.pop();
-      const doneStr = lastMatch.at(1);
-      const totalStr = lastMatch.at(2);
-      done = parseInt(doneStr || '0', 10);
-      total = parseInt(totalStr || '1', 10);
-    }
+    const done = parseInt(progressMatch.at(1) || '0', 10);
+    const total = parseInt(progressMatch.at(2) || '1', 10);
 
     let updated = false;
     let updatedType = '';

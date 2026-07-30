@@ -166,39 +166,11 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    // 1. Check for valid progress ratio pattern anywhere in the message/embeds
-    const progressMatch = cleanContent.match(/(\d+)\s*\/\s*(\d+)/);
-    if (!progressMatch) {
-      return null;
-    }
+    // Check if the message contains a quest log structure or any progress pattern
+    const hasProgress = /\d+\s*\/\s*\d+/.test(cleanContent);
+    const isQuestLog = lowerContent.includes('quest log') || lowerContent.includes('quest seals') || hasProgress;
 
-    // 2. Expanded target check: must contain at least one quest keyword/phrase
-    const isTargetQuest = 
-      lowerContent.includes('pray') || 
-      lowerContent.includes('curse') || 
-      lowerContent.includes('action') ||
-      lowerContent.includes('receive pray') || 
-      lowerContent.includes('receive curse') || 
-      lowerContent.includes('receive curses') ||
-      lowerContent.includes('receive action') ||
-      lowerContent.includes('receive actions') ||
-      lowerContent.includes('receive an action');
-
-    if (!isTargetQuest) return null;
-
-    // 3. Strict negative filter block
-    if (
-      lowerContent.includes('cookie') || 
-      lowerContent.includes('boss') || 
-      lowerContent.includes('hunt') || 
-      lowerContent.includes('xp') || 
-      lowerContent.includes('experience') || 
-      lowerContent.includes('manual') ||
-      lowerContent.includes('use an action') || 
-      lowerContent.includes('action command')
-    ) {
-      return null;
-    }
+    if (!isQuestLog) return null;
 
     let userId = null;
     let username = 'user';
@@ -243,7 +215,7 @@ module.exports = {
 
     if (!userId) {
       const recentUser = activity.get(message.channelId);
-      if (recentUser && Date.now() - recentUser.timestamp < 60000) {
+      if (recentUser && Date.now() - recentUser.timestamp < 120000) {
         userId = recentUser.id;
         username = recentUser.username;
         helperId = recentUser.id;
@@ -252,7 +224,7 @@ module.exports = {
 
     if (!userId && message.channel?.messages) {
       try {
-        const messagesLog = await message.channel.messages.fetch({ limit: 10 });
+        const messagesLog = await message.channel.messages.fetch({ limit: 15 });
         const lastHumanMsg = messagesLog.find(msg => !msg.author.bot);
         if (lastHumanMsg) {
           userId = lastHumanMsg.author.id;
@@ -269,40 +241,74 @@ module.exports = {
     userAllData.userId = userId;
     userAllData.username = username;
 
-    const done = parseInt(progressMatch.at(1) || '0', 10);
-    const total = parseInt(progressMatch.at(2) || '1', 10);
+    let anyUpdated = false;
+    let lastUpdatedType = '';
+    let lastDone = 0;
+    let lastTotal = 1;
 
-    let updated = false;
-    let updatedType = '';
+    // Break down the embed text line by line or section by section to isolate each quest item
+    const sections = cleanContent.split(/(?=\d+\.\s+)/);
 
-    if (lowerContent.includes('pray') || lowerContent.includes('🙏') || lowerContent.includes('receive pray')) {
-      userAllData.quests.pray = { questType: 'pray', done, total, timestamp: Date.now() };
-      updated = true;
-      updatedType = 'pray';
+    for (const section of sections) {
+      const lowerSec = section.toLowerCase();
+      const match = section.match(/(\d+)\s*\/\s*(\d+)/);
+      if (!match) continue;
+
+      const done = parseInt(match.at(1) || '0', 10);
+      const total = parseInt(match.at(2) || '1', 10);
+
+      if (lowerSec.includes('pray') || lowerSec.includes('🙏')) {
+        userAllData.quests.pray = { questType: 'pray', done, total, timestamp: Date.now() };
+        anyUpdated = true;
+        lastUpdatedType = 'pray';
+        lastDone = done;
+        lastTotal = total;
+      } else if (lowerSec.includes('curse') || lowerSec.includes('👻')) {
+        userAllData.quests.curse = { questType: 'curse', done, total, timestamp: Date.now() };
+        anyUpdated = true;
+        lastUpdatedType = 'curse';
+        lastDone = done;
+        lastTotal = total;
+      } else if (lowerSec.includes('action') || lowerSec.includes('🎭')) {
+        userAllData.quests.action = { questType: 'action', done, total, timestamp: Date.now() };
+        anyUpdated = true;
+        lastUpdatedType = 'action';
+        lastDone = done;
+        lastTotal = total;
+      }
     }
 
-    if (lowerContent.includes('curse') || lowerContent.includes('👻') || lowerContent.includes('receive curse') || lowerContent.includes('receive curses')) {
-      userAllData.quests.curse = { questType: 'curse', done, total, timestamp: Date.now() };
-      updated = true;
-      updatedType = 'curse';
+    // Fallback global check if sections didn't parse individual blocks cleanly
+    if (!anyUpdated) {
+      const globalMatches = [...cleanContent.matchAll(/(\d+)\s*\/\s*(\d+)/g)];
+      if (globalMatches.length > 0) {
+        const lastMatch = globalMatches.pop();
+        const done = parseInt(lastMatch.at(1) || '0', 10);
+        const total = parseInt(lastMatch.at(2) || '1', 10);
+        lastDone = done;
+        lastTotal = total;
+
+        if (lowerContent.includes('curse')) {
+          userAllData.quests.curse = { questType: 'curse', done, total, timestamp: Date.now() };
+          anyUpdated = true;
+          lastUpdatedType = 'curse';
+        } else if (lowerContent.includes('pray')) {
+          userAllData.quests.pray = { questType: 'pray', done, total, timestamp: Date.now() };
+          anyUpdated = true;
+          lastUpdatedType = 'pray';
+        } else if (lowerContent.includes('action')) {
+          userAllData.quests.action = { questType: 'action', done, total, timestamp: Date.now() };
+          anyUpdated = true;
+          lastUpdatedType = 'action';
+        }
+      }
     }
 
-    if (
-      lowerContent.includes('receive an action') || 
-      lowerContent.includes('receive action') ||
-      lowerContent.includes('receive actions') ||
-      (lowerContent.includes('action') && !lowerContent.includes('use an action') && !lowerContent.includes('action command'))
-    ) {
-      userAllData.quests.action = { questType: 'action', done, total, timestamp: Date.now() };
-      updated = true;
-      updatedType = 'action';
-    }
-
-    if (updated) {
+    if (anyUpdated) {
       db.set(allKey, userAllData);
       db.set(userId, userAllData);
 
-      const isCompleted = done >= total || lowerContent.includes('complete') || lowerContent.includes('finished');
+      const isCompleted = lastDone >= lastTotal || lowerContent.includes('complete') || lowerContent.includes('finished');
 
       try {
         await message.react('1532147975587893460');
@@ -311,14 +317,14 @@ module.exports = {
       }
 
       try {
-        let announcementText = `<:up:1532147975587893460> **Quest Tracked:** ${username} (${updatedType}) \`${userId}\` \`${done}/${total}\``;
+        let announcementText = `<:up:1532147975587893460> **Quest Tracked:** ${username} (${lastUpdatedType}) \`${userId}\` \`${lastDone}/${lastTotal}\``;
         
         if (isCompleted) {
           announcementText += ` 🎉 **Quest Completed!**`;
           if (helperId && helperId !== userId) {
             announcementText += ` (Helped by <@${helperId}>)`;
           }
-          delete userAllData.quests[updatedType];
+          delete userAllData.quests[lastUpdatedType];
         }
 
         await message.channel.send(announcementText);

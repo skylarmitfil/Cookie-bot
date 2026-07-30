@@ -166,11 +166,27 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
+    // 1. Check for valid progress ratio pattern anywhere in the message/embeds
     const progressMatch = cleanContent.match(/(\d+)\s*\/\s*(\d+)/);
     if (!progressMatch) {
       return null;
     }
 
+    // 2. Expanded target check: must contain at least one quest keyword/phrase
+    const isTargetQuest = 
+      lowerContent.includes('pray') || 
+      lowerContent.includes('curse') || 
+      lowerContent.includes('action') ||
+      lowerContent.includes('receive pray') || 
+      lowerContent.includes('receive curse') || 
+      lowerContent.includes('receive curses') ||
+      lowerContent.includes('receive action') ||
+      lowerContent.includes('receive actions') ||
+      lowerContent.includes('receive an action');
+
+    if (!isTargetQuest) return null;
+
+    // 3. Strict negative filter block
     if (
       lowerContent.includes('cookie') || 
       lowerContent.includes('boss') || 
@@ -184,22 +200,10 @@ module.exports = {
       return null;
     }
 
-    const isTargetQuest = 
-      lowerContent.includes('pray') || 
-      lowerContent.includes('curse') || 
-      lowerContent.includes('action') ||
-      lowerContent.includes('receive pray') || 
-      lowerContent.includes('receive curse') || 
-      lowerContent.includes('receive action') ||
-      lowerContent.includes('receive an action');
-
-    if (!isTargetQuest) return null;
-
     let userId = null;
     let username = 'user';
     let helperId = null;
 
-    // Check interaction metadata user or fallback to recent author or mentioned user/reply
     if (message.interactionMetadata?.user) {
       userId = message.interactionMetadata.user.id;
       username = message.interactionMetadata.user.username;
@@ -208,13 +212,11 @@ module.exports = {
     if (!userId && message.embeds && message.embeds.length > 0) {
       for (const embed of message.embeds) {
         const embedAuthorText = (embed.author?.name || '').toLowerCase();
-        // Look for something like "@Skylar's Quest Log"
         if (embedAuthorText.includes('quest log')) {
           const rawAuthorName = embed.author.name;
           const matchName = rawAuthorName.match(/@?([^'’]+)(?:'s|’s)?\s*Quest Log/i);
           if (matchName) {
             const targetName = matchName[1].trim();
-            // Try to find user from recent activity in channel matching this username
             for (const [chanId, act] of activity.entries()) {
               if (act.username.toLowerCase() === targetName.toLowerCase()) {
                 userId = act.id;
@@ -241,7 +243,7 @@ module.exports = {
 
     if (!userId) {
       const recentUser = activity.get(message.channelId);
-      if (recentUser && Date.now() - recentUser.timestamp < 30000) {
+      if (recentUser && Date.now() - recentUser.timestamp < 60000) {
         userId = recentUser.id;
         username = recentUser.username;
         helperId = recentUser.id;
@@ -273,13 +275,13 @@ module.exports = {
     let updated = false;
     let updatedType = '';
 
-    if (lowerContent.includes('pray') || lowerContent.includes('🙏')) {
+    if (lowerContent.includes('pray') || lowerContent.includes('🙏') || lowerContent.includes('receive pray')) {
       userAllData.quests.pray = { questType: 'pray', done, total, timestamp: Date.now() };
       updated = true;
       updatedType = 'pray';
     }
 
-    if (lowerContent.includes('curse') || lowerContent.includes('👻') || lowerContent.includes('receive curses')) {
+    if (lowerContent.includes('curse') || lowerContent.includes('👻') || lowerContent.includes('receive curse') || lowerContent.includes('receive curses')) {
       userAllData.quests.curse = { questType: 'curse', done, total, timestamp: Date.now() };
       updated = true;
       updatedType = 'curse';

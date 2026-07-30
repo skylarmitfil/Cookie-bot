@@ -3,6 +3,9 @@ const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('dis
 const COMPONENTS_V2_FLAG = 32768;
 const OWO_BOT_ID = '408785106942115840';
 
+/**
+ * Recursively extracts text content and labels from Discord v2 / action row components.
+ */
 function extractComponentsText(components, acc = []) {
   if (!Array.isArray(components)) return acc;
   for (const comp of components) {
@@ -21,33 +24,40 @@ function extractComponentsText(components, acc = []) {
   return acc;
 }
 
+/**
+ * Safely increments progress for a specific active quest.
+ * Keeps completed status capped at `total/total` so `.q` can display it.
+ */
 function incrementQuest(db, userId, username, type) {
-    const key = `${userId}_all_quests`;
-    const data = db.get(key) || db.get(userId) || {
-        userId,
-        username,
-        quests: {}
-    };
+  const key = `${userId}_all_quests`;
+  const data = db.get(key) || db.get(userId) || {
+    userId,
+    username,
+    quests: {}
+  };
 
-    const quest = data.quests[type];
-    if (!quest) return false;
+  const quest = data.quests[type];
+  if (!quest) return false;
 
-    if (quest.done < quest.total) {
-        quest.done++;
-        quest.timestamp = Date.now();
+  if (quest.done < quest.total) {
+    quest.done++;
+    quest.timestamp = Date.now();
 
-        if (quest.done > quest.total) {
-            quest.done = quest.total;
-        }
-
-        db.set(key, data);
-        db.set(userId, data);
-        return true;
+    if (quest.done > quest.total) {
+      quest.done = quest.total;
     }
 
-    return false;
+    db.set(key, data);
+    db.set(userId, data);
+    return true;
+  }
+
+  return false;
 }
 
+/**
+ * Builds the interactive v2 components embed payload for the quest display menu.
+ */
 function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'all_quests', disabled = false) {
   const allKey = `${targetUserId}_all_quests`;
   const userAllData = db.get(allKey) || db.get(targetUserId) || { userId: targetUserId, username: fallbackUsername, quests: {} };
@@ -118,7 +128,7 @@ function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'al
 
 module.exports = {
   name: 'q',
-  description: 'Displays quest information and tracking help.',
+  description: 'Displays quest information and tracking status.',
 
   buildQuestPayload,
   incrementQuest,
@@ -193,6 +203,7 @@ module.exports = {
     const db = message.client.questDatabase || new Map();
     const activity = message.client.recentQuestActivity || new Map();
 
+    // 1. Log active human user context before filtering out bots
     if (message.author && !message.author.bot) {
       const lowCont = message.content.toLowerCase();
       if (lowCont.includes("owo") || lowCont.includes("uwu") || lowCont.startsWith("w")) {
@@ -206,9 +217,9 @@ module.exports = {
     }
 
     if (!message.author || !message.author.bot) return null;
-
     if (message.client.user && message.author.id === message.client.user.id) return null;
 
+    // 2. Extract full readable text across messages, embeds, and components
     let textToCheck = message.content || '';
     if (message.embeds && message.embeds.length > 0) {
       for (const embed of message.embeds) {
@@ -233,6 +244,10 @@ module.exports = {
 
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
+
+    // 3. Early check for Quest Log output to prevent false action triggers
+    const hasProgress = /\d+\s*\/\s*\d+/.test(cleanContent);
+    const isQuestLog = lowerContent.includes('quest log') || lowerContent.includes('quest seals') || (hasProgress && lowerContent.includes('quest'));
 
     let userId = null;
     let username = 'user';
@@ -263,57 +278,53 @@ module.exports = {
     if (!userId) return null;
 
     const isOwOBot = message.author.id === OWO_BOT_ID;
-    const actionWords = [
-      "hug", "pat", "kiss", "cuddle", "slap", "poke", "lick",
-      "nom", "bite", "highfive", "tickle", "handhold", "handholding",
-      "snuggle", "boop", "wave", "punch", "hold", "dance", "cry",
-      "smile", "blush", "stare", "feed"
-    ];
 
-    const isAction = actionWords.some(word =>
+    // 4. Handle single Pray / Curse / Action increments (Skipped if message is a Quest Log)
+    if (isOwOBot && !isQuestLog) {
+      const actionWords = [
+        "hug", "pat", "kiss", "cuddle", "slap", "poke", "lick",
+        "nom", "bite", "highfive", "tickle", "handhold", "handholding",
+        "snuggle", "boop", "wave", "punch", "dance", "cry",
+        "smile", "blush", "stare", "feed"
+      ];
+
+      const isAction = actionWords.some(word =>
         lowerContent.includes(word) &&
         (
-            lowerContent.includes("you") ||
-            lowerContent.includes("hug") ||
-            lowerContent.includes("kiss") ||
-            lowerContent.includes("cuddle")
+          lowerContent.includes("you") ||
+          lowerContent.includes("hug") ||
+          lowerContent.includes("kiss") ||
+          lowerContent.includes("cuddle")
         )
-    );
+      );
 
-    let incremented = false;
+      let incremented = false;
 
-    if (isOwOBot && (
-        lowerContent.includes("you prayed") ||
-        lowerContent.includes("you pray")
-    )) {
+      if (lowerContent.includes("you prayed") || lowerContent.includes("you pray")) {
         incremented = incrementQuest(db, userId, username, "pray") || incremented;
-    }
-
-    if (isOwOBot && (
-        lowerContent.includes("you cursed") ||
-        lowerContent.includes("you curse")
-    )) {
-        incremented = incrementQuest(db, userId, username, "curse") || incremented;
-    }
-
-    if (isOwOBot && isAction) {
-        incremented = incrementQuest(db, userId, username, "action") || incremented;
-    }
-
-    if (incremented) {
-      try {
-        await message.react('1532147975587893460');
-      } catch (err) {
-        console.error('Failed to react to action message:', err);
       }
 
-      const allKey = `${userId}_all_quests`;
-      return db.get(allKey);
+      if (lowerContent.includes("you cursed") || lowerContent.includes("you curse")) {
+        incremented = incrementQuest(db, userId, username, "curse") || incremented;
+      }
+
+      if (isAction) {
+        incremented = incrementQuest(db, userId, username, "action") || incremented;
+      }
+
+      if (incremented) {
+        try {
+          await message.react('1532147975587893460');
+        } catch (err) {
+          console.error('Failed to react to action message:', err);
+        }
+
+        const allKey = `${userId}_all_quests`;
+        return db.get(allKey);
+      }
     }
 
-    const hasProgress = /\d+\s*\/\s*\d+/.test(cleanContent);
-    const isQuestLog = lowerContent.includes('quest log') || lowerContent.includes('quest seals') || hasProgress;
-
+    // 5. Handle Quest Log Parsing
     if (!isQuestLog) return null;
 
     let helperId = null;

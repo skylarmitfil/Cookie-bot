@@ -253,7 +253,7 @@ module.exports = {
       updatedType = 'pray';
     }
 
-    if (lowerContent.includes('curse') || lowerContent.includes('👻')) {
+    if (lowerContent.includes('curse') || lowerContent.includes('👻') || lowerContent.includes('receive curses')) {
       userAllData.quests.curse = { questType: 'curse', done, total, timestamp: Date.now() };
       updated = true;
       updatedType = 'curse';
@@ -262,6 +262,7 @@ module.exports = {
     if (
       lowerContent.includes('receive an action') || 
       lowerContent.includes('receive action') ||
+      lowerContent.includes('receive actions') ||
       (lowerContent.includes('action') && !lowerContent.includes('use an action') && !lowerContent.includes('action command'))
     ) {
       userAllData.quests.action = { questType: 'action', done, total, timestamp: Date.now() };

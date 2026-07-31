@@ -1,20 +1,36 @@
-const Tesseract = require('tesseract.js');
+const { createWorker } = require('tesseract.js');
 
 const COMPONENTS_V2_FLAG = 32768;
+const ACTIVITY_TTL_MS = 600000;
+
+const QUEST_TYPES = [
+  { type: 'pray', emoji: '🙏', keywords: ['pray', '🙏'] },
+  { type: 'curse', emoji: '👻', keywords: ['curse', '👻'] },
+  { type: 'action', emoji: '🎭', keywords: ['action', 'battle', 'hunt', 'gamble', '🎭'] }
+];
+
+let _workerPromise = null;
+function getOcrWorker() {
+  if (!_workerPromise) _workerPromise = createWorker('eng');
+  return _workerPromise;
+}
+
+function isStaticImage(att) {
+  const type = (att.contentType || '').toLowerCase();
+  const name = (att.name || '').toLowerCase();
+  return (type.startsWith('image/') || /\.(png|jpe?g|webp|bmp)$/.test(name)) &&
+    type !== 'image/gif' && !name.endsWith('.gif');
+}
 
 async function ocrImageAttachments(message) {
   if (!message.attachments || message.attachments.size === 0) return '';
 
   let text = '';
   for (const att of message.attachments.values()) {
-    const type = (att.contentType || '').toLowerCase();
-    const name = (att.name || '').toLowerCase();
-    const isImage = (type.startsWith('image/') || /\.(png|jpe?g|webp|bmp)$/.test(name)) &&
-      type !== 'image/gif' && !name.endsWith('.gif');
-    if (!isImage) continue;
-
+    if (!isStaticImage(att)) continue;
     try {
-      const { data } = await Tesseract.recognize(att.url, 'eng');
+      const worker = await getOcrWorker();
+      const { data } = await worker.recognize(att.url);
       if (data && data.text) text += '\n' + data.text;
     } catch (err) {
       console.error('OCR failed for attachment:', att.url, err);
@@ -41,9 +57,48 @@ function extractComponentsText(components, acc = []) {
   return acc;
 }
 
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function parseQuests(text) {
+  const hits = [];
+  for (const { type, keywords } of QUEST_TYPES) {
+    for (const kw of keywords) {
+      const re = new RegExp(escapeRegExp(kw), 'gi');
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        hits.push({ type, index: m.index });
+        if (m.index === re.lastIndex) re.lastIndex++;
+      }
+    }
+  }
+  hits.sort((a, b) => a.index - b.index);
+
+  const results = {};
+  for (let i = 0; i < hits.length; i++) {
+    const { type, index } = hits[i];
+    if (results[type]) continue;
+
+    let end = text.length;
+    for (let j = i + 1; j < hits.length; j++) {
+      if (hits[j].type !== type) { end = hits[j].index; break; }
+    }
+
+    const fm = text.slice(index, end).match(/(\d+)\s*\/\s*(\d+)/);
+    if (fm) results[type] = { type, done: parseInt(fm[1] || '0', 10), total: parseInt(fm[2] || '1', 10) };
+  }
+  return Object.values(results);
+}
+
+function questLine(num, username, emoji, id, q) {
+  const check = (q.total > 0 && q.done >= q.total) ? ' ✅' : '';
+  return `\`#${num}\` ${username} ${emoji} \`${id}\` \`${q.done}/${q.total}\`${check}`;
+}
+
 function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'all_quests', disabled = false) {
   const allKey = `${targetUserId}_all_quests`;
-  const userAllData = db.get(allKey) || db.get(targetUserId) || { userId: targetUserId, username: fallbackUsername, quests: {} };
+  const userAllData = db.get(allKey) || { userId: targetUserId, username: fallbackUsername, quests: {} };
   const savedQuests = userAllData.quests || {};
   const username = userAllData.username || fallbackUsername;
   const currentUserId = userAllData.userId || targetUserId;
@@ -56,20 +111,20 @@ function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'al
   let allText = `### Quests\n\n`;
   if (hasAnyQuest) {
     let n = 0;
-    if (hasPray) allText += `\`#${++n}\` ${username} 🙏 \`${currentUserId}\` \`${savedQuests.pray.done}/${savedQuests.pray.total}\`\n`;
-    if (hasCurse) allText += `\`#${++n}\` ${username} 👻 \`${currentUserId}\` \`${savedQuests.curse.done}/${savedQuests.curse.total}\`\n`;
-    if (hasAction) allText += `\`#${++n}\` ${username} 🎭 \`${currentUserId}\` \`${savedQuests.action.done}/${savedQuests.action.total}\`\n`;
+    if (hasPray) allText += questLine(++n, username, '🙏', currentUserId, savedQuests.pray) + '\n';
+    if (hasCurse) allText += questLine(++n, username, '👻', currentUserId, savedQuests.curse) + '\n';
+    if (hasAction) allText += questLine(++n, username, '🎭', currentUserId, savedQuests.action) + '\n';
     allText = allText.trimEnd();
   } else {
     allText += `**All Quests:**\nNo active quests tracked yet.`;
   }
 
   const prayText = `### Quests\n\n**Pray Quests:**\n` +
-    (hasPray ? `\`#1\` ${username} 🙏 \`${currentUserId}\` \`${savedQuests.pray.done}/${savedQuests.pray.total}\`` : `No active pray quest.`);
+    (hasPray ? questLine(1, username, '🙏', currentUserId, savedQuests.pray) : `No active pray quest.`);
   const curseText = `### Quests\n\n**Curse Quests:**\n` +
-    (hasCurse ? `\`#1\` ${username} 👻 \`${currentUserId}\` \`${savedQuests.curse.done}/${savedQuests.curse.total}\`` : `No active curse quest.`);
+    (hasCurse ? questLine(1, username, '👻', currentUserId, savedQuests.curse) : `No active curse quest.`);
   const actionText = `### Quests\n\n**Action Quests:**\n` +
-    (hasAction ? `\`#1\` ${username} 🎭 \`${currentUserId}\` \`${savedQuests.action.done}/${savedQuests.action.total}\`` : `No active action quest.`);
+    (hasAction ? questLine(1, username, '🎭', currentUserId, savedQuests.action) : `No active action quest.`);
 
   const contents = {
     all_quests: allText,
@@ -119,6 +174,7 @@ module.exports = {
   init: (client) => {
     if (!client.questDatabase) client.questDatabase = new Map();
     if (!client.recentQuestActivity) client.recentQuestActivity = new Map();
+    getOcrWorker().catch(err => console.error('OCR worker init failed:', err));
   },
 
   handleSelectMenu: async (interaction) => {
@@ -186,12 +242,7 @@ module.exports = {
     const isHuman = Boolean(message.author && !message.author.bot);
 
     const hasImage = message.attachments && message.attachments.size > 0 &&
-      [...message.attachments.values()].some(att => {
-        const type = (att.contentType || '').toLowerCase();
-        const name = (att.name || '').toLowerCase();
-        return (type.startsWith('image/') || /\.(png|jpe?g|webp|bmp)$/.test(name)) &&
-          type !== 'image/gif' && !name.endsWith('.gif');
-      });
+      [...message.attachments.values()].some(isStaticImage);
 
     if (isHuman) {
       activity.set(message.channelId, {
@@ -226,7 +277,8 @@ module.exports = {
       if (parts.length) textToCheck += '\n' + parts.join('\n');
     }
 
-    if (hasImage) {
+    const alreadyHasQuest = /\d+\s*\/\s*\d+/.test(textToCheck) || textToCheck.toLowerCase().includes('quest');
+    if (hasImage && !alreadyHasQuest) {
       const ocrText = await ocrImageAttachments(message);
       if (ocrText) textToCheck += '\n' + ocrText;
     }
@@ -245,14 +297,14 @@ module.exports = {
     let username = 'user';
     let helperId = null;
 
-    if (isHuman) {
-      userId = message.author.id;
-      username = message.author.username;
-    }
-
-    if (!userId && message.interactionMetadata?.user) {
+    if (message.interactionMetadata?.user) {
       userId = message.interactionMetadata.user.id;
       username = message.interactionMetadata.user.username;
+    }
+
+    if (!userId && isHuman) {
+      userId = message.author.id;
+      username = message.author.username;
     }
 
     if (!userId && message.embeds && message.embeds.length > 0) {
@@ -289,7 +341,7 @@ module.exports = {
 
     if (!userId) {
       const recentUser = activity.get(message.channelId);
-      if (recentUser && Date.now() - recentUser.timestamp < 120000) {
+      if (recentUser && Date.now() - recentUser.timestamp < ACTIVITY_TTL_MS) {
         userId = recentUser.id;
         username = recentUser.username;
         helperId = recentUser.id;
@@ -311,110 +363,49 @@ module.exports = {
     if (!userId) return null;
 
     const allKey = `${userId}_all_quests`;
-    let userAllData = db.get(allKey) || db.get(userId) || { userId, username, quests: {} };
+    let userAllData = db.get(allKey) || { userId, username, quests: {} };
     userAllData.userId = userId;
     userAllData.username = username;
 
-    let anyUpdated = false;
+    const parsed = parseQuests(cleanContent);
+    if (parsed.length === 0) return null;
+
     let lastUpdatedType = '';
     let lastDone = 0;
     let lastTotal = 1;
 
-    const sections = cleanContent.split(/(?=\d+\.\s+)/);
-
-    for (const section of sections) {
-      const lowerSec = section.toLowerCase();
-      const match = section.match(/(\d+)\s*\/\s*(\d+)/);
-      if (!match) continue;
-
-      const done = parseInt(match[1] || '0', 10);
-      const total = parseInt(match[2] || '1', 10);
-
-      if (lowerSec.includes('pray') || lowerSec.includes('🙏')) {
-        userAllData.quests.pray = { questType: 'pray', done, total, timestamp: Date.now() };
-        anyUpdated = true;
-        lastUpdatedType = 'pray';
-        lastDone = done;
-        lastTotal = total;
-      } else if (lowerSec.includes('curse') || lowerSec.includes('👻')) {
-        userAllData.quests.curse = { questType: 'curse', done, total, timestamp: Date.now() };
-        anyUpdated = true;
-        lastUpdatedType = 'curse';
-        lastDone = done;
-        lastTotal = total;
-      } else if (lowerSec.includes('action') || lowerSec.includes('🎭')) {
-        userAllData.quests.action = { questType: 'action', done, total, timestamp: Date.now() };
-        anyUpdated = true;
-        lastUpdatedType = 'action';
-        lastDone = done;
-        lastTotal = total;
-      }
+    for (const q of parsed) {
+      userAllData.quests[q.type] = { questType: q.type, done: q.done, total: q.total, timestamp: Date.now() };
+      lastUpdatedType = q.type;
+      lastDone = q.done;
+      lastTotal = q.total;
     }
 
-    if (!anyUpdated) {
-      const globalMatches = [...cleanContent.matchAll(/(\d+)\s*\/\s*(\d+)/g)];
-      if (globalMatches.length > 0) {
-        const lastMatch = globalMatches.pop();
-        const done = parseInt(lastMatch[1] || '0', 10);
-        const total = parseInt(lastMatch[2] || '1', 10);
-        lastDone = done;
-        lastTotal = total;
+    db.set(allKey, userAllData);
 
-        if (lowerContent.includes('curse')) {
-          userAllData.quests.curse = { questType: 'curse', done, total, timestamp: Date.now() };
-          anyUpdated = true;
-          lastUpdatedType = 'curse';
-        } else if (lowerContent.includes('pray')) {
-          userAllData.quests.pray = { questType: 'pray', done, total, timestamp: Date.now() };
-          anyUpdated = true;
-          lastUpdatedType = 'pray';
-        } else if (lowerContent.includes('action')) {
-          userAllData.quests.action = { questType: 'action', done, total, timestamp: Date.now() };
-          anyUpdated = true;
-          lastUpdatedType = 'action';
-        }
-      }
+    const isCompleted = lastTotal > 0 && lastDone >= lastTotal;
+
+    try {
+      await message.react('1532147975587893460');
+    } catch (err) {
+      console.error('Failed to react to quest message:', err);
     }
 
-    if (anyUpdated) {
-      const isCompleted = lastTotal > 0 && lastDone >= lastTotal;
+    try {
+      let announcementText = `<:up:1532147975587893460> **Quest Tracked:** ${username} (${lastUpdatedType}) \`${userId}\` \`${lastDone}/${lastTotal}\``;
 
-      const completedTypes = [];
-      for (const type of Object.keys(userAllData.quests)) {
-        const qd = userAllData.quests[type];
-        if (qd && qd.total > 0 && qd.done >= qd.total) {
-          completedTypes.push(type);
-          delete userAllData.quests[type];
+      if (isCompleted) {
+        announcementText += ` 🎉 **Quest Completed!**`;
+        if (helperId && helperId !== userId) {
+          announcementText += ` (Helped by <@${helperId}>)`;
         }
       }
 
-      db.set(allKey, userAllData);
-      db.set(userId, userAllData);
-
-      try {
-        await message.react('1532147975587893460');
-      } catch (err) {
-        console.error('Failed to react to quest message:', err);
-      }
-
-      try {
-        let announcementText = `<:up:1532147975587893460> **Quest Tracked:** ${username} (${lastUpdatedType}) \`${userId}\` \`${lastDone}/${lastTotal}\``;
-
-        if (isCompleted) {
-          announcementText += ` 🎉 **Quest Completed!**`;
-          if (helperId && helperId !== userId) {
-            announcementText += ` (Helped by <@${helperId}>)`;
-          }
-        }
-
-        await message.channel.send(announcementText);
-      } catch (err) {
-        console.error('Failed to send quest notification:', err);
-      }
-
-      return userAllData;
+      await message.channel.send(announcementText);
+    } catch (err) {
+      console.error('Failed to send quest notification:', err);
     }
 
-    return null;
+    return userAllData;
   }
 };

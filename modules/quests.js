@@ -482,7 +482,7 @@ module.exports = {
 
     try {
       const lines = updates.map(u => {
-        let line = `<:up:1532147975587893460> **Quest Tracked:** ${username} (${u.type}) \`${userId}\` \`${u.done}/${u.total}\``;
+        let line = `<:up:1532147975587893460> **Quest Tracked:** ${username} ${emoji} \`${userId}\` \`${u.done}/${u.total}\``;
         if (u.completed) {
           line += ` 🎉 **Quest Completed!**`;
           if (helperId && helperId !== userId) line += ` (Helped by <@${helperId}>)`;

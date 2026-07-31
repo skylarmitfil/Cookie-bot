@@ -1,4 +1,5 @@
 const { createWorker } = require('tesseract.js');
+const { Jimp } = require('jimp');
 
 const COMPONENTS_V2_FLAG = 32768;
 const ACTIVITY_TTL_MS = 600000;
@@ -10,8 +11,18 @@ const QUEST_TYPES = [
 ];
 
 let _workerPromise = null;
+async function _createConfiguredWorker() {
+  const worker = await createWorker('eng');
+  try {
+    await worker.setParameters({
+      tessedit_pageseg_mode: '6',
+      preserve_interword_spaces: '1'
+    });
+  } catch (e) {}
+  return worker;
+}
 function getOcrWorker() {
-  if (!_workerPromise) _workerPromise = createWorker('eng');
+  if (!_workerPromise) _workerPromise = _createConfiguredWorker();
   return _workerPromise;
 }
 
@@ -22,21 +33,49 @@ function isStaticImage(att) {
     type !== 'image/gif' && !name.endsWith('.gif');
 }
 
-async function ocrImageAttachments(message) {
-  if (!message.attachments || message.attachments.size === 0) return '';
-
-  let text = '';
-  for (const att of message.attachments.values()) {
-    if (!isStaticImage(att)) continue;
+async function ocrUrl(url) {
+  try {
+    const worker = await getOcrWorker();
+    let input = url;
     try {
-      const worker = await getOcrWorker();
-      const { data } = await worker.recognize(att.url);
-      if (data && data.text) text += '\n' + data.text;
-    } catch (err) {
-      console.error('OCR failed for attachment:', att.url, err);
+      const img = await Jimp.read(url);
+      img.scale(3).greyscale().contrast(0.4);
+      input = await img.getBuffer('image/png');
+    } catch (preErr) {
+      console.error('Image preprocess failed, using raw url:', preErr.message);
     }
+    const { data } = await worker.recognize(input);
+    return (data && data.text) ? data.text : '';
+  } catch (err) {
+    console.error('OCR failed for:', url, err);
+    return '';
   }
-  return text;
+}
+
+function collectComponentImageUrls(components, acc = []) {
+  if (!Array.isArray(components)) return acc;
+  for (const comp of components) {
+    if (!comp) continue;
+    const raw = comp.data || comp;
+
+    const items = comp.items || raw.items;
+    if (Array.isArray(items)) {
+      for (const it of items) {
+        const media = (it && (it.media || (it.data && it.data.media))) || null;
+        const url = media && (media.url || media.proxyURL || media.proxy_url);
+        if (url) acc.push(url);
+      }
+    }
+
+    const media = comp.media || raw.media;
+    if (media && (media.url || media.proxyURL || media.proxy_url)) {
+      acc.push(media.url || media.proxyURL || media.proxy_url);
+    }
+
+    const nested = comp.components || raw.components;
+    if (nested) collectComponentImageUrls(nested, acc);
+  }
+  return acc;
 }
 
 function extractComponentsText(components, acc = []) {
@@ -92,8 +131,7 @@ function parseQuests(text) {
 }
 
 function questLine(num, username, emoji, id, q) {
-  const check = (q.total > 0 && q.done >= q.total) ? ' ✅' : '';
-  return `\`#${num}\` ${username} ${emoji} \`${id}\` \`${q.done}/${q.total}\`${check}`;
+  return `\`#${num}\` ${username} ${emoji} \`${id}\` \`${q.done}/${q.total}\``;
 }
 
 function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'all_quests', disabled = false) {
@@ -170,10 +208,14 @@ module.exports = {
   description: 'Displays quest information and tracking help.',
 
   buildQuestPayload,
+  _collectComponentImageUrls: collectComponentImageUrls,
+  _extractComponentsText: extractComponentsText,
+  _parseQuests: parseQuests,
 
   init: (client) => {
     if (!client.questDatabase) client.questDatabase = new Map();
     if (!client.recentQuestActivity) client.recentQuestActivity = new Map();
+    if (!client.questMessages) client.questMessages = new Map();
     getOcrWorker().catch(err => console.error('OCR worker init failed:', err));
   },
 
@@ -189,6 +231,11 @@ module.exports = {
     try {
       const payload = buildQuestPayload(db, userId, interaction.user.username, selectedKey, false);
       await interaction.update(payload);
+
+      const store = interaction.client.questMessages;
+      if (store && interaction.message) {
+        store.set(userId, { message: interaction.message, selectedKey });
+      }
     } catch (err) {
       console.error('Failed to update quest menu:', err);
     }
@@ -223,10 +270,15 @@ module.exports = {
       const userId = message.author.id;
       const payload = buildQuestPayload(db, userId, message.author.username, 'all_quests', false);
 
+      let sentMsg = null;
       if (typeof message.reply === 'function' && !message.deferred && !message.replied) {
-        await message.reply(payload);
+        sentMsg = await message.reply(payload);
       } else if (message.channel && typeof message.channel.send === 'function') {
-        await message.channel.send(payload);
+        sentMsg = await message.channel.send(payload);
+      }
+
+      if (sentMsg && message.client.questMessages) {
+        message.client.questMessages.set(userId, { message: sentMsg, selectedKey: 'all_quests' });
       }
     } catch (error) {
       console.error('Error executing quests command:', error);
@@ -235,19 +287,6 @@ module.exports = {
 
   handleIncomingQuests: async (message) => {
     if (!message) return null;
-
-    if (message.author?.bot && message.author.id !== message.client.user?.id) {
-      console.log('=== QUEST DEBUG ===');
-      console.log('author:', message.author.username);
-      console.log('content:', JSON.stringify(message.content));
-      console.log('embeds:', JSON.stringify((message.embeds || []).map(e => ({
-        title: e.title, description: e.description, author: e.author, fields: e.fields, footer: e.footer
-      }))));
-      console.log('components:', JSON.stringify(message.components, (k, v) => k === 'client' ? undefined : v));
-      console.log('attachments:', [...(message.attachments?.values?.() || [])].map(a => ({ name: a.name, ct: a.contentType, url: a.url })));
-      console.log('interaction:', message.interactionMetadata ? { name: message.interactionMetadata.name, user: message.interactionMetadata.user?.username } : null);
-      console.log('=== END DEBUG ===');
-    }
 
     const db = message.client.questDatabase || new Map();
     const activity = message.client.recentQuestActivity || new Map();
@@ -290,10 +329,19 @@ module.exports = {
       if (parts.length) textToCheck += '\n' + parts.join('\n');
     }
 
-    const alreadyHasQuest = /\d+\s*\/\s*\d+/.test(textToCheck) || textToCheck.toLowerCase().includes('quest');
-    if (hasImage && !alreadyHasQuest) {
-      const ocrText = await ocrImageAttachments(message);
-      if (ocrText) textToCheck += '\n' + ocrText;
+    const imageUrls = [];
+    for (const att of message.attachments?.values?.() || []) {
+      if (isStaticImage(att)) imageUrls.push(att.url);
+    }
+    collectComponentImageUrls(message.components || [], imageUrls);
+
+    const looksLikeQuest = textToCheck.toLowerCase().includes('quest');
+    const hasProgressText = /\d+\s*\/\s*\d+/.test(textToCheck);
+    if (imageUrls.length && !hasProgressText && (looksLikeQuest || isHuman)) {
+      for (const url of imageUrls) {
+        const ocrText = await ocrUrl(url);
+        if (ocrText) textToCheck += '\n' + ocrText;
+      }
     }
 
     if (!textToCheck) return null;
@@ -314,6 +362,22 @@ module.exports = {
     if (message.interactionMetadata?.user) {
       userId = message.interactionMetadata.user.id;
       username = message.interactionMetadata.user.username;
+    }
+
+    if (!userId) {
+      const mention = cleanContent.match(/<@!?(\d+)>/);
+      if (mention) {
+        userId = mention[1];
+        const cached = message.client.users?.cache?.get?.(userId);
+        if (cached) {
+          username = cached.username;
+        } else {
+          try {
+            const u = await message.client.users.fetch(userId);
+            if (u) username = u.username;
+          } catch (e) {}
+        }
+      }
     }
 
     if (!userId && isHuman) {
@@ -384,20 +448,31 @@ module.exports = {
     const parsed = parseQuests(cleanContent);
     if (parsed.length === 0) return null;
 
-    let lastUpdatedType = '';
-    let lastDone = 0;
-    let lastTotal = 1;
+    const updates = [];
+    const completedTypes = [];
 
     for (const q of parsed) {
       userAllData.quests[q.type] = { questType: q.type, done: q.done, total: q.total, timestamp: Date.now() };
-      lastUpdatedType = q.type;
-      lastDone = q.done;
-      lastTotal = q.total;
+      const completed = q.total > 0 && q.done >= q.total;
+      updates.push({ type: q.type, done: q.done, total: q.total, completed });
+      if (completed) completedTypes.push(q.type);
     }
+
+    for (const t of completedTypes) delete userAllData.quests[t];
 
     db.set(allKey, userAllData);
 
-    const isCompleted = lastTotal > 0 && lastDone >= lastTotal;
+    const store = message.client.questMessages;
+    const tracked = store && store.get(userId);
+    if (tracked && tracked.message && typeof tracked.message.edit === 'function') {
+      try {
+        const refreshPayload = buildQuestPayload(db, userId, username, tracked.selectedKey || 'all_quests', false);
+        await tracked.message.edit(refreshPayload);
+      } catch (err) {
+        console.error('Failed to auto-refresh quest embed:', err);
+        store.delete(userId);
+      }
+    }
 
     try {
       await message.react('1532147975587893460');
@@ -406,16 +481,15 @@ module.exports = {
     }
 
     try {
-      let announcementText = `<:up:1532147975587893460> **Quest Tracked:** ${username} (${lastUpdatedType}) \`${userId}\` \`${lastDone}/${lastTotal}\``;
-
-      if (isCompleted) {
-        announcementText += ` 🎉 **Quest Completed!**`;
-        if (helperId && helperId !== userId) {
-          announcementText += ` (Helped by <@${helperId}>)`;
+      const lines = updates.map(u => {
+        let line = `<:up:1532147975587893460> **Quest Tracked:** ${username} (${u.type}) \`${userId}\` \`${u.done}/${u.total}\``;
+        if (u.completed) {
+          line += ` 🎉 **Quest Completed!**`;
+          if (helperId && helperId !== userId) line += ` (Helped by <@${helperId}>)`;
         }
-      }
-
-      await message.channel.send(announcementText);
+        return line;
+      });
+      await message.channel.send(lines.join('\n'));
     } catch (err) {
       console.error('Failed to send quest notification:', err);
     }
@@ -423,3 +497,4 @@ module.exports = {
     return userAllData;
   }
 };
+

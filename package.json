@@ -4,11 +4,13 @@
   "description": "OwO Reminder Bot",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node test/bugRepro.js"
   },
   "dependencies": {
     "discord.js": "^14.27.0",
     "dotenv": "^16.4.5",
+    "jimp": "^1.6.1",
     "tesseract.js": "^5.1.1"
   }
 }

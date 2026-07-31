@@ -482,6 +482,9 @@ module.exports = {
 
     try {
       const lines = updates.map(u => {
+        const questMeta = QUEST_TYPES.find(qt => qt.type === u.type);
+        const emoji = questMeta ? questMeta.emoji : '';
+        
         let line = `<:up:1532147975587893460> **Quest Tracked:** <@${userId}> ${emoji} \`${userId}\` \`${u.done}/${u.total}\``;
         if (u.completed) {
           line += ` 🎉 **Quest Completed!**`;

@@ -59,20 +59,21 @@ function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'al
 
   let allText = `### Quests\n\n`;
   if (hasAnyQuest) {
-    if (hasPray) allText += `┃ ${username} (pray) \`${currentUserId}\` \`${savedQuests.pray.done}/${savedQuests.pray.total}\`\n`;
-    if (hasCurse) allText += `┃ ${username} (curse) \`${currentUserId}\` \`${savedQuests.curse.done}/${savedQuests.curse.total}\`\n`;
-    if (hasAction) allText += `┃ ${username} (action) \`${currentUserId}\` \`${savedQuests.action.done}/${savedQuests.action.total}\`\n`;
+    let n = 0;
+    if (hasPray) allText += `\`#${++n}\` ${username} 🙏 \`${currentUserId}\` \`${savedQuests.pray.done}/${savedQuests.pray.total}\`\n`;
+    if (hasCurse) allText += `\`#${++n}\` ${username} 👻 \`${currentUserId}\` \`${savedQuests.curse.done}/${savedQuests.curse.total}\`\n`;
+    if (hasAction) allText += `\`#${++n}\` ${username} 🎭 \`${currentUserId}\` \`${savedQuests.action.done}/${savedQuests.action.total}\`\n`;
     allText = allText.trimEnd();
   } else {
-    allText += `**All Quests:**\n┃ No active quests tracked yet.`;
+    allText += `**All Quests:**\nNo active quests tracked yet.`;
   }
 
   const prayText = `### Quests\n\n**Pray Quests:**\n` +
-    (hasPray ? `┃ ${username} (pray) \`${currentUserId}\` \`${savedQuests.pray.done}/${savedQuests.pray.total}\`` : `┃ No active pray quest.`);
+    (hasPray ? `\`#1\` ${username} 🙏 \`${currentUserId}\` \`${savedQuests.pray.done}/${savedQuests.pray.total}\`` : `No active pray quest.`);
   const curseText = `### Quests\n\n**Curse Quests:**\n` +
-    (hasCurse ? `┃ ${username} (curse) \`${currentUserId}\` \`${savedQuests.curse.done}/${savedQuests.curse.total}\`` : `┃ No active curse quest.`);
+    (hasCurse ? `\`#1\` ${username} 👻 \`${currentUserId}\` \`${savedQuests.curse.done}/${savedQuests.curse.total}\`` : `No active curse quest.`);
   const actionText = `### Quests\n\n**Action Quests:**\n` +
-    (hasAction ? `┃ ${username} (action) \`${currentUserId}\` \`${savedQuests.action.done}/${savedQuests.action.total}\`` : `┃ No active action quest.`);
+    (hasAction ? `\`#1\` ${username} 🎭 \`${currentUserId}\` \`${savedQuests.action.done}/${savedQuests.action.total}\`` : `No active action quest.`);
 
   const contents = {
     all_quests: allText,

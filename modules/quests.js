@@ -288,8 +288,7 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    const hasProgress = /\d+\s*\/\s*\d+/.test(cleanContent);
-    const isQuestLog = lowerContent.includes('quest log') || lowerContent.includes('quest seals') || hasProgress;
+    const isQuestLog = lowerContent.includes('quest');
 
     if (!isQuestLog) return null;
 

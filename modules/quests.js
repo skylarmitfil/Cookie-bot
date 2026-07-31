@@ -131,7 +131,7 @@ function parseQuests(text) {
 }
 
 function questLine(num, username, emoji, id, q) {
-  return `\`#${num}\` ${username} ${emoji} \`${id}\` \`${q.done}/${q.total}\``;
+  return `\`#${num}\` <@${id}> ${emoji} \`${id}\` \`${q.done}/${q.total}\``;
 }
 
 function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'all_quests', disabled = false) {

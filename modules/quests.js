@@ -1,11 +1,31 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const Tesseract = require('tesseract.js');
 
-const COMPONENTS_V2_FLAG = 32768;
-const OWO_BOT_ID = '408785106942115840';
+const COMPONENTS_V2_FLAG = 32768; // MessageFlags.IsComponentsV2 (1 << 15)
 
-/**
- * Recursively extracts text content and labels from Discord v2 / action row components.
- */
+// OCR any image attachments on a message and return the recognised text.
+// Lets the bot track quests when people post a screenshot instead of the
+// native quest embed.
+async function ocrImageAttachments(message) {
+  if (!message.attachments || message.attachments.size === 0) return '';
+
+  let text = '';
+  for (const att of message.attachments.values()) {
+    const type = (att.contentType || '').toLowerCase();
+    const name = (att.name || '').toLowerCase();
+    const isImage = type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp)$/.test(name);
+    if (!isImage) continue;
+
+    try {
+      const { data } = await Tesseract.recognize(att.url, 'eng');
+      if (data && data.text) text += '\n' + data.text;
+    } catch (err) {
+      console.error('OCR failed for attachment:', att.url, err);
+    }
+  }
+  return text;
+}
+
+// Recursively pull all text out of a Components V2 message tree.
 function extractComponentsText(components, acc = []) {
   if (!Array.isArray(components)) return acc;
   for (const comp of components) {
@@ -24,40 +44,7 @@ function extractComponentsText(components, acc = []) {
   return acc;
 }
 
-/**
- * Safely increments progress for a specific active quest.
- * Keeps completed status capped at `total/total` so `.q` can display it.
- */
-function incrementQuest(db, userId, username, type) {
-  const key = `${userId}_all_quests`;
-  const data = db.get(key) || db.get(userId) || {
-    userId,
-    username,
-    quests: {}
-  };
-
-  const quest = data.quests[type];
-  if (!quest) return false;
-
-  if (quest.done < quest.total) {
-    quest.done++;
-    quest.timestamp = Date.now();
-
-    if (quest.done > quest.total) {
-      quest.done = quest.total;
-    }
-
-    db.set(key, data);
-    db.set(userId, data);
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Builds the interactive v2 components embed payload for the quest display menu.
- */
+// Build the Components V2 payload for a given target user + selected view.
 function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'all_quests', disabled = false) {
   const allKey = `${targetUserId}_all_quests`;
   const userAllData = db.get(allKey) || db.get(targetUserId) || { userId: targetUserId, username: fallbackUsername, quests: {} };
@@ -128,10 +115,9 @@ function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'al
 
 module.exports = {
   name: 'q',
-  description: 'Displays quest information and tracking status.',
+  description: 'Displays quest information and tracking help.',
 
   buildQuestPayload,
-  incrementQuest,
 
   init: (client) => {
     if (!client.questDatabase) client.questDatabase = new Map();
@@ -165,14 +151,11 @@ module.exports = {
     const slashName = message.interactionMetadata?.name?.toLowerCase() || '';
 
     if (message.author && !message.author.bot) {
-      const lowCont = message.content.toLowerCase();
-      if (lowCont.includes("owo") || lowCont.includes("uwu") || lowCont.startsWith("w")) {
-        activity.set(message.channelId, {
-          id: message.author.id,
-          username: message.author.username,
-          timestamp: Date.now()
-        });
-      }
+      activity.set(message.channelId, {
+        id: message.author.id,
+        username: message.author.username,
+        timestamp: Date.now()
+      });
     }
 
     const isQuestCommand =
@@ -203,23 +186,32 @@ module.exports = {
     const db = message.client.questDatabase || new Map();
     const activity = message.client.recentQuestActivity || new Map();
 
-    // 1. Log active human user context before filtering out bots
-    if (message.author && !message.author.bot) {
-      const lowCont = message.content.toLowerCase();
-      if (lowCont.includes("owo") || lowCont.includes("uwu") || lowCont.startsWith("w")) {
-        activity.set(message.channelId, {
-          id: message.author.id,
-          username: message.author.username,
-          timestamp: Date.now()
-        });
-      }
-      return null;
+    const isHuman = Boolean(message.author && !message.author.bot);
+
+    // Does this message carry an image we might OCR a quest log from?
+    const hasImage = message.attachments && message.attachments.size > 0 &&
+      [...message.attachments.values()].some(att => {
+        const type = (att.contentType || '').toLowerCase();
+        const name = (att.name || '').toLowerCase();
+        return type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp)$/.test(name);
+      });
+
+    if (isHuman) {
+      activity.set(message.channelId, {
+        id: message.author.id,
+        username: message.author.username,
+        timestamp: Date.now()
+      });
+      // Humans only continue past here if they posted a screenshot to OCR.
+      if (!hasImage) return null;
     }
 
-    if (!message.author || !message.author.bot) return null;
+    if (!message.author) return null;
+
+    // Never react to our OWN messages — our "Quest Tracked ... 0/3" announcement
+    // itself contains a progress pattern, which would cause an infinite loop.
     if (message.client.user && message.author.id === message.client.user.id) return null;
 
-    // 2. Extract full readable text across messages, embeds, and components
     let textToCheck = message.content || '';
     if (message.embeds && message.embeds.length > 0) {
       for (const embed of message.embeds) {
@@ -235,9 +227,16 @@ module.exports = {
       }
     }
 
+    // Components V2 messages carry their text inside `message.components`.
     if (message.components && message.components.length > 0) {
       const parts = extractComponentsText(message.components);
       if (parts.length) textToCheck += '\n' + parts.join('\n');
+    }
+
+    // Image quest logs: run OCR on any image attachments.
+    if (hasImage) {
+      const ocrText = await ocrImageAttachments(message);
+      if (ocrText) textToCheck += '\n' + ocrText;
     }
 
     if (!textToCheck) return null;
@@ -245,89 +244,25 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    // 3. Early check for Quest Log output to prevent false action triggers
     const hasProgress = /\d+\s*\/\s*\d+/.test(cleanContent);
-    const isQuestLog = lowerContent.includes('quest log') || lowerContent.includes('quest seals') || (hasProgress && lowerContent.includes('quest'));
+    const isQuestLog = lowerContent.includes('quest log') || lowerContent.includes('quest seals') || hasProgress;
+
+    if (!isQuestLog) return null;
 
     let userId = null;
     let username = 'user';
+    let helperId = null;
 
-    if (message.interactionMetadata?.user) {
+    // A human posting their own quest screenshot is the quester.
+    if (isHuman) {
+      userId = message.author.id;
+      username = message.author.username;
+    }
+
+    if (!userId && message.interactionMetadata?.user) {
       userId = message.interactionMetadata.user.id;
       username = message.interactionMetadata.user.username;
     }
-
-    if (!userId && message.reference) {
-      try {
-        const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
-        if (repliedMsg && !repliedMsg.author.bot) {
-          userId = repliedMsg.author.id;
-          username = repliedMsg.author.username;
-        }
-      } catch (e) {}
-    }
-
-    if (!userId) {
-      const recentUser = activity.get(message.channelId);
-      if (recentUser && Date.now() - recentUser.timestamp < 120000) {
-        userId = recentUser.id;
-        username = recentUser.username;
-      }
-    }
-
-    if (!userId) return null;
-
-    const isOwOBot = message.author.id === OWO_BOT_ID;
-
-    // 4. Handle single Pray / Curse / Action increments (Skipped if message is a Quest Log)
-    if (isOwOBot && !isQuestLog) {
-      const actionWords = [
-        "hug", "pat", "kiss", "cuddle", "slap", "poke", "lick",
-        "nom", "bite", "highfive", "tickle", "handhold", "handholding",
-        "snuggle", "boop", "wave", "punch", "dance", "cry",
-        "smile", "blush", "stare", "feed"
-      ];
-
-      const isAction = actionWords.some(word =>
-        lowerContent.includes(word) &&
-        (
-          lowerContent.includes("you") ||
-          lowerContent.includes("hug") ||
-          lowerContent.includes("kiss") ||
-          lowerContent.includes("cuddle")
-        )
-      );
-
-      let incremented = false;
-
-      if (lowerContent.includes("you prayed") || lowerContent.includes("you pray")) {
-        incremented = incrementQuest(db, userId, username, "pray") || incremented;
-      }
-
-      if (lowerContent.includes("you cursed") || lowerContent.includes("you curse")) {
-        incremented = incrementQuest(db, userId, username, "curse") || incremented;
-      }
-
-      if (isAction) {
-        incremented = incrementQuest(db, userId, username, "action") || incremented;
-      }
-
-      if (incremented) {
-        try {
-          await message.react('1532147975587893460');
-        } catch (err) {
-          console.error('Failed to react to action message:', err);
-        }
-
-        const allKey = `${userId}_all_quests`;
-        return db.get(allKey);
-      }
-    }
-
-    // 5. Handle Quest Log Parsing
-    if (!isQuestLog) return null;
-
-    let helperId = null;
 
     if (!userId && message.embeds && message.embeds.length > 0) {
       for (const embed of message.embeds) {
@@ -347,6 +282,26 @@ module.exports = {
             }
           }
         }
+      }
+    }
+
+    if (!userId && message.reference) {
+      try {
+        const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+        if (repliedMsg && !repliedMsg.author.bot) {
+          userId = repliedMsg.author.id;
+          username = repliedMsg.author.username;
+          helperId = repliedMsg.author.id;
+        }
+      } catch (e) {}
+    }
+
+    if (!userId) {
+      const recentUser = activity.get(message.channelId);
+      if (recentUser && Date.now() - recentUser.timestamp < 120000) {
+        userId = recentUser.id;
+        username = recentUser.username;
+        helperId = recentUser.id;
       }
     }
 
@@ -450,6 +405,7 @@ module.exports = {
           if (helperId && helperId !== userId) {
             announcementText += ` (Helped by <@${helperId}>)`;
           }
+          delete userAllData.quests[lastUpdatedType];
         }
 
         await message.channel.send(announcementText);

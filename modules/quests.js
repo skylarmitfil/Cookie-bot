@@ -1,10 +1,7 @@
 const Tesseract = require('tesseract.js');
 
-const COMPONENTS_V2_FLAG = 32768; // MessageFlags.IsComponentsV2 (1 << 15)
+const COMPONENTS_V2_FLAG = 32768;
 
-// OCR any image attachments on a message and return the recognised text.
-// Lets the bot track quests when people post a screenshot instead of the
-// native quest embed.
 async function ocrImageAttachments(message) {
   if (!message.attachments || message.attachments.size === 0) return '';
 
@@ -12,7 +9,8 @@ async function ocrImageAttachments(message) {
   for (const att of message.attachments.values()) {
     const type = (att.contentType || '').toLowerCase();
     const name = (att.name || '').toLowerCase();
-    const isImage = type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp)$/.test(name);
+    const isImage = (type.startsWith('image/') || /\.(png|jpe?g|webp|bmp)$/.test(name)) &&
+      type !== 'image/gif' && !name.endsWith('.gif');
     if (!isImage) continue;
 
     try {
@@ -25,7 +23,6 @@ async function ocrImageAttachments(message) {
   return text;
 }
 
-// Recursively pull all text out of a Components V2 message tree.
 function extractComponentsText(components, acc = []) {
   if (!Array.isArray(components)) return acc;
   for (const comp of components) {
@@ -44,7 +41,6 @@ function extractComponentsText(components, acc = []) {
   return acc;
 }
 
-// Build the Components V2 payload for a given target user + selected view.
 function buildQuestPayload(db, targetUserId, fallbackUsername, selectedKey = 'all_quests', disabled = false) {
   const allKey = `${targetUserId}_all_quests`;
   const userAllData = db.get(allKey) || db.get(targetUserId) || { userId: targetUserId, username: fallbackUsername, quests: {} };
@@ -189,12 +185,12 @@ module.exports = {
 
     const isHuman = Boolean(message.author && !message.author.bot);
 
-    // Does this message carry an image we might OCR a quest log from?
     const hasImage = message.attachments && message.attachments.size > 0 &&
       [...message.attachments.values()].some(att => {
         const type = (att.contentType || '').toLowerCase();
         const name = (att.name || '').toLowerCase();
-        return type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp)$/.test(name);
+        return (type.startsWith('image/') || /\.(png|jpe?g|webp|bmp)$/.test(name)) &&
+          type !== 'image/gif' && !name.endsWith('.gif');
       });
 
     if (isHuman) {
@@ -203,14 +199,11 @@ module.exports = {
         username: message.author.username,
         timestamp: Date.now()
       });
-      // Humans only continue past here if they posted a screenshot to OCR.
       if (!hasImage) return null;
     }
 
     if (!message.author) return null;
 
-    // Never react to our OWN messages — our "Quest Tracked ... 0/3" announcement
-    // itself contains a progress pattern, which would cause an infinite loop.
     if (message.client.user && message.author.id === message.client.user.id) return null;
 
     let textToCheck = message.content || '';
@@ -228,13 +221,11 @@ module.exports = {
       }
     }
 
-    // Components V2 messages carry their text inside `message.components`.
     if (message.components && message.components.length > 0) {
       const parts = extractComponentsText(message.components);
       if (parts.length) textToCheck += '\n' + parts.join('\n');
     }
 
-    // Image quest logs: run OCR on any image attachments.
     if (hasImage) {
       const ocrText = await ocrImageAttachments(message);
       if (ocrText) textToCheck += '\n' + ocrText;
@@ -254,7 +245,6 @@ module.exports = {
     let username = 'user';
     let helperId = null;
 
-    // A human posting their own quest screenshot is the quester.
     if (isHuman) {
       userId = message.author.id;
       username = message.author.username;
@@ -387,10 +377,19 @@ module.exports = {
     }
 
     if (anyUpdated) {
+      const isCompleted = lastTotal > 0 && lastDone >= lastTotal;
+
+      const completedTypes = [];
+      for (const type of Object.keys(userAllData.quests)) {
+        const qd = userAllData.quests[type];
+        if (qd && qd.total > 0 && qd.done >= qd.total) {
+          completedTypes.push(type);
+          delete userAllData.quests[type];
+        }
+      }
+
       db.set(allKey, userAllData);
       db.set(userId, userAllData);
-
-      const isCompleted = lastTotal > 0 && lastDone >= lastTotal;
 
       try {
         await message.react('1532147975587893460');
@@ -406,7 +405,6 @@ module.exports = {
           if (helperId && helperId !== userId) {
             announcementText += ` (Helped by <@${helperId}>)`;
           }
-          delete userAllData.quests[lastUpdatedType];
         }
 
         await message.channel.send(announcementText);

@@ -236,6 +236,19 @@ module.exports = {
   handleIncomingQuests: async (message) => {
     if (!message) return null;
 
+    if (message.author?.bot && message.author.id !== message.client.user?.id) {
+      console.log('=== QUEST DEBUG ===');
+      console.log('author:', message.author.username);
+      console.log('content:', JSON.stringify(message.content));
+      console.log('embeds:', JSON.stringify((message.embeds || []).map(e => ({
+        title: e.title, description: e.description, author: e.author, fields: e.fields, footer: e.footer
+      }))));
+      console.log('components:', JSON.stringify(message.components, (k, v) => k === 'client' ? undefined : v));
+      console.log('attachments:', [...(message.attachments?.values?.() || [])].map(a => ({ name: a.name, ct: a.contentType, url: a.url })));
+      console.log('interaction:', message.interactionMetadata ? { name: message.interactionMetadata.name, user: message.interactionMetadata.user?.username } : null);
+      console.log('=== END DEBUG ===');
+    }
+
     const db = message.client.questDatabase || new Map();
     const activity = message.client.recentQuestActivity || new Map();
 
@@ -288,7 +301,9 @@ module.exports = {
     const cleanContent = textToCheck.replace(/\s+/g, ' ').trim();
     const lowerContent = cleanContent.toLowerCase();
 
-    const isQuestLog = lowerContent.includes('quest');
+    const hasProgress = /\d+\s*\/\s*\d+/.test(cleanContent);
+    const isQuestLog = lowerContent.includes('quest') ||
+      (hasProgress && (lowerContent.includes('pray') || lowerContent.includes('curse')));
 
     if (!isQuestLog) return null;
 
